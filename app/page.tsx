@@ -534,6 +534,52 @@ export default function Home() {
                     </div>
                   </div>
 
+                  <div className="mb-4">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Carga Especial (Segregação)</label>
+                    <select
+                      value={prancha.specialCargoType || 'NONE'}
+                      onChange={(e) => {
+                        const newPranchas = [...input.pranchas];
+                        newPranchas[index].specialCargoType = e.target.value as any;
+                        if (e.target.value !== 'ICE') {
+                          newPranchas[index].iceWeight = undefined;
+                        }
+                        setInput({...input, pranchas: newPranchas});
+                      }}
+                      className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all bg-white"
+                    >
+                      <option value="NONE">Nenhuma</option>
+                      <option value="ICE">Gelo Seco (ICE)</option>
+                      <option value="AVI">Animais Vivos (AVI)</option>
+                      <option value="DGR">Carga Perigosa (DGR)</option>
+                      <option value="WET">Carga Úmida (WET)</option>
+                      <option value="PER">Perecível (PER)</option>
+                      <option value="HUM">Restos Mortais (HUM)</option>
+                      <option value="VAL">Carga Valiosa (VAL)</option>
+                    </select>
+                  </div>
+
+                  {prancha.specialCargoType === 'ICE' && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg"
+                    >
+                      <label className="block text-xs font-semibold text-blue-800 uppercase tracking-wider mb-1.5">Peso Total de Gelo Seco (kg)</label>
+                      <input
+                        type="number"
+                        value={prancha.iceWeight || ''}
+                        onChange={(e) => {
+                          const newPranchas = [...input.pranchas];
+                          newPranchas[index].iceWeight = Number(e.target.value);
+                          setInput({...input, pranchas: newPranchas});
+                        }}
+                        placeholder="Ex: 50"
+                        className="w-full p-2.5 text-sm rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono bg-white"
+                      />
+                    </motion.div>
+                  )}
+
                   <div className="pt-2">
                     <label className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors bg-white">
                       <input 
@@ -615,142 +661,6 @@ export default function Home() {
               >
                 + Adicionar Prancha
               </button>
-
-              <div className="pt-4">
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Cargas Especiais (Segregação)</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={input.dgrTypes.includes('LITHIUM_BULK')} 
-                      onChange={(e) => {
-                        const newDgr = e.target.checked 
-                          ? [...input.dgrTypes, 'LITHIUM_BULK'] 
-                          : input.dgrTypes.filter(t => t !== 'LITHIUM_BULK');
-                        setInput({...input, dgrTypes: newDgr, isDGR: newDgr.length > 0});
-                      }} 
-                      className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
-                    />
-                    <span className="text-sm font-medium text-slate-700">LITHIUM (Bulk)</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={input.dgrTypes.includes('LITHIUM_EQUIP')} 
-                      onChange={(e) => {
-                        const newDgr = e.target.checked 
-                          ? [...input.dgrTypes, 'LITHIUM_EQUIP'] 
-                          : input.dgrTypes.filter(t => t !== 'LITHIUM_EQUIP');
-                        setInput({...input, dgrTypes: newDgr, isDGR: newDgr.length > 0});
-                      }} 
-                      className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
-                    />
-                    <span className="text-sm font-medium text-slate-700">LITHIUM (Equip)</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={input.dgrTypes.includes('FLAM')} 
-                      onChange={(e) => {
-                        const newDgr = e.target.checked 
-                          ? [...input.dgrTypes, 'FLAM'] 
-                          : input.dgrTypes.filter(t => t !== 'FLAM');
-                        setInput({...input, dgrTypes: newDgr, isDGR: newDgr.length > 0});
-                      }} 
-                      className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
-                    />
-                    <span className="text-sm font-medium text-slate-700">FLAM (Inflam.)</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={input.dgrTypes.includes('EXPLOSIVE')} 
-                      onChange={(e) => {
-                        const newDgr = e.target.checked 
-                          ? [...input.dgrTypes, 'EXPLOSIVE'] 
-                          : input.dgrTypes.filter(t => t !== 'EXPLOSIVE');
-                        setInput({...input, dgrTypes: newDgr, isDGR: newDgr.length > 0});
-                      }} 
-                      className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
-                    />
-                    <span className="text-sm font-medium text-slate-700">EXPLOSIVE</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={input.dgrTypes.includes('GAS')} 
-                      onChange={(e) => {
-                        const newDgr = e.target.checked 
-                          ? [...input.dgrTypes, 'GAS'] 
-                          : input.dgrTypes.filter(t => t !== 'GAS');
-                        setInput({...input, dgrTypes: newDgr, isDGR: newDgr.length > 0});
-                      }} 
-                      className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
-                    />
-                    <span className="text-sm font-medium text-slate-700">GAS</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={input.dgrTypes.includes('TOXIC')} 
-                      onChange={(e) => {
-                        const newDgr = e.target.checked 
-                          ? [...input.dgrTypes, 'TOXIC'] 
-                          : input.dgrTypes.filter(t => t !== 'TOXIC');
-                        setInput({...input, dgrTypes: newDgr, isDGR: newDgr.length > 0});
-                      }} 
-                      className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
-                    />
-                    <span className="text-sm font-medium text-slate-700">TOXIC</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={input.dgrTypes.includes('RADIOACTIVE')} 
-                      onChange={(e) => {
-                        const newDgr = e.target.checked 
-                          ? [...input.dgrTypes, 'RADIOACTIVE'] 
-                          : input.dgrTypes.filter(t => t !== 'RADIOACTIVE');
-                        setInput({...input, dgrTypes: newDgr, isDGR: newDgr.length > 0});
-                      }} 
-                      className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
-                    />
-                    <span className="text-sm font-medium text-slate-700">RADIOACTIVE</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={input.dgrTypes.includes('ICE')} 
-                      onChange={(e) => {
-                        const newDgr = e.target.checked 
-                          ? [...input.dgrTypes, 'ICE'] 
-                          : input.dgrTypes.filter(t => t !== 'ICE');
-                        setInput({...input, dgrTypes: newDgr, isICE: e.target.checked});
-                      }} 
-                      className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
-                    />
-                    <span className="text-sm font-medium text-slate-700">ICE (Gelo Seco)</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={input.dgrTypes.includes('AVI')} 
-                      onChange={(e) => {
-                        const newDgr = e.target.checked 
-                          ? [...input.dgrTypes, 'AVI'] 
-                          : input.dgrTypes.filter(t => t !== 'AVI');
-                        setInput({...input, dgrTypes: newDgr, isAVI: e.target.checked});
-                      }} 
-                      className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
-                    />
-                    <span className="text-sm font-medium text-slate-700">AVI (Animais)</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors sm:col-span-3">
-                    <input type="checkbox" checked={input.isWET} onChange={(e) => setInput({...input, isWET: e.target.checked})} className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" />
-                    <span className="text-sm font-medium text-slate-700">WET (Molhados)</span>
-                  </label>
-                </div>
-              </div>
             </div>
           </div>
         </div>

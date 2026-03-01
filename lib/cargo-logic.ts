@@ -10,6 +10,8 @@ export interface Prancha {
   hasOversize: boolean;
   oversizeVolumes: number;
   oversizeWeight: number;
+  specialCargoType?: 'NONE' | 'ICE' | 'AVI' | 'DGR' | 'WET' | 'PER' | 'HUM' | 'VAL';
+  iceWeight?: number;
 }
 
 export interface CargoInput {
@@ -229,6 +231,23 @@ export function generateManifest(input: CargoInput): ManifestResult {
       
       posicoes += pranchaPos;
     });
+  }
+  
+  // ICE Validation per prancha
+  let totalIceWeight = 0;
+  input.pranchas.forEach((p) => {
+    if (p.specialCargoType === 'ICE' && p.iceWeight) {
+      totalIceWeight += p.iceWeight;
+    }
+  });
+
+  if (totalIceWeight > 0) {
+    if (totalIceWeight > config.iceLimit) {
+      warnings.push(`CRÍTICO: Limite de Gelo Seco (ICE) excedido! Total: ${totalIceWeight}kg (Limite da aeronave ${input.aircraft}: ${config.iceLimit}kg).`);
+      status = 'REJEITADO';
+    } else {
+      warnings.push(`INFO: Gelo Seco (ICE) detectado: ${totalIceWeight}kg (Limite: ${config.iceLimit}kg). Requer ventilação adequada.`);
+    }
   }
   
   // 4. Special Loads & Product Types & DGR Matrix
