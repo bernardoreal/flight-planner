@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera } from 'lucide-react';
 import { AircraftType, CargoInput, ManifestResult, generateManifest } from '@/lib/cargo-logic';
-import { GoogleGenAI } from '@google/genai';
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
+import { GoogleGenAI } from '@google/genai';
 
 export default function Home() {
   const [input, setInput] = useState<CargoInput>({
@@ -51,71 +51,114 @@ export default function Home() {
     setManifest(result);
   }, [input, flightDate]);
 
+  const getGeminiClient = () => {
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY_MISSING');
+    }
+    return new GoogleGenAI({ apiKey });
+  };
+
+  // Helper to extract JSON from AI response
+  const extractJSON = (text: string) => {
+    try {
+      // 1. Try to find JSON inside markdown code blocks
+      const codeBlockMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+      if (codeBlockMatch && codeBlockMatch[1]) {
+        return JSON.parse(codeBlockMatch[1]);
+      }
+      
+      // 2. Try to find the first valid JSON object using regex
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+
+      // 3. Try parsing the raw text
+      return JSON.parse(text);
+    } catch (e) {
+      console.error("JSON Parse Error:", e);
+      return null;
+    }
+  };
+
   const handleFetchFlight = async () => {
     if (!input.flightCode) return;
     setIsLoadingFlight(true);
     setFlightError('');
     
     try {
-      const apiKey = "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";
+      const ai = getGeminiClient();
       
       const now = new Date();
       const currentDateStr = now.toLocaleDateString('pt-BR');
       const currentTimeStr = now.toLocaleTimeString('pt-BR');
       
-      const prompt = `Simule a busca de informações sobre o próximo voo comercial ${input.flightCode} da LATAM (ou outra companhia se aplicável).
-      Atenção à regra de data: O horário atual é ${currentDateStr} às ${currentTimeStr}. 
-      - Se o voo de hoje (${currentDateStr}) AINDA NÃO DECOLOU, traga as informações do voo de HOJE.
-      - Se o voo de hoje JÁ DECOLOU (o horário de partida programado é anterior ao horário atual), traga as informações do voo de AMANHÃ.
+      const prompt = `ATUE COMO UM ESPECIALISTA EM AVIAÇÃO E RASTREAMENTO DE VOOS EM TEMPO REAL.
       
-      Identifique o modelo exato da aeronave operando este voo (ex: Airbus A319, A320, A321, Boeing 777), a sua matrícula/prefixo (ex: PR-XPA, PT-TMA), a origem (código IATA com 3 letras, ex: GRU) e o destino (código IATA com 3 letras, ex: MIA).
+      Sua missão é descobrir a MATRÍCULA (Registration/Tail Number) EXATA e CONFIRMADA da aeronave para o voo ${input.flightCode}.
       
-      IMPORTANTE SOBRE A MATRÍCULA: Forneça uma matrícula típica e válida da frota da LATAM Brasil correspondente ao modelo encontrado (ex: PT-TMA para A319, PR-MYX para A320, PT-XPA para A321). NUNCA retorne "N/A" ou vazio para a matrícula. O sistema exige que uma matrícula seja sempre exibida.
+      Dados Atuais:
+      - Data: ${currentDateStr}
+      - Hora: ${currentTimeStr}
       
-      Mapeie o modelo para um dos seguintes valores estritos: "A319", "A320", "A321". Se for qualquer outro modelo, use "OTHER".
+      PROTOCOLO DE VERIFICAÇÃO RIGOROSA (GROUNDING):
+      1. Realize buscas específicas no Google para o voo "${input.flightCode}" em sites confiáveis:
+         - "FlightRadar24 ${input.flightCode}"
+         - "FlightAware ${input.flightCode}"
+         - "FlightStats ${input.flightCode}"
+         - "RadarBox ${input.flightCode}"
       
-      Responda OBRIGATORIAMENTE com um bloco JSON contendo as chaves "aircraft", "registration", "origin", "destination" e "date". A chave "date" deve conter a data exata do voo encontrado (formato DD/MM/YYYY). Exemplo:
+      2. REGRA DE DATA E HORÁRIO (CRUCIAL):
+         - Identifique o horário de partida programado (STD) do voo de HOJE (${currentDateStr}).
+         - Compare com o horário atual (${currentTimeStr}).
+         - CASO 1: Se o voo de hoje AINDA NÃO DECOLOU (Horário Atual < Horário de Partida), retorne os dados do voo de HOJE.
+         - CASO 2: Se o voo de hoje JÁ DECOLOU (Horário Atual > Horário de Partida), retorne os dados do voo de AMANHÃ.
+           - Isso se aplica mesmo que o voo de hoje esteja em rota. Se já saiu, queremos o próximo (amanhã).
+           - Exceção: Se o voo estiver MUITO atrasado e ainda não saiu, considere como 'não decolou' (Caso 1).
+      
+      3. CRITÉRIO DE DESEMPATE:
+         - Se o FlightRadar24 mostrar uma matrícula e o FlightAware mostrar outra, dê preferência àquele que mostra o status "Live" ou "Active" mais recente.
+         - A matrícula deve seguir o padrão da companhia (ex: LATAM Brasil usa PT-***, PR-***).
+      
+      4. REGRAS DE SAÍDA:
+         - Modelo: Identifique se é A319, A320, A321, B767, B787, B777. Mapeie para "A319", "A320", "A321" ou "OTHER".
+         - Matrícula: DEVE ser a real (ex: PT-MXG, PR-MYX). Se não encontrar, retorne "N/A".
+         - Origem/Destino: Use os códigos IATA reais (ex: GRU, MIA, LIS).
+         - Data: A data do voo retornado (HOJE ou AMANHÃ).
+      
+      Responda APENAS com o JSON final no seguinte formato:
       \`\`\`json
       {
-        "aircraft": "A320",
-        "registration": "PR-MYX",
+        "aircraft": "A321",
+        "registration": "PT-MXG",
         "origin": "GRU",
         "destination": "MIA",
-        "date": "${currentDateStr}"
+        "date": "DD/MM/YYYY",
+        "reasoning": "Explique brevemente aqui qual fonte confirmou a matrícula e o status do voo."
       }
       \`\`\``;
 
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-pro-preview",
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
         },
-        body: JSON.stringify({
-          model: "qwen/qwen-2-vl-72b-instruct:free",
-          messages: [
-            { role: "user", content: prompt }
-          ]
-        })
       });
 
-      if (!response.ok) {
-        throw new Error(`OpenRouter API error: ${response.status}`);
-      }
-
-      const dataRes = await response.json();
-      const text = dataRes.choices?.[0]?.message?.content;
+      const text = response.text;
       
       if (!text) {
         throw new Error('Resposta vazia da IA');
       }
 
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('Formato de resposta inválido da IA');
+      const data = extractJSON(text);
+      
+      if (!data) {
+        console.error("Raw AI Response:", text);
+        throw new Error('Formato de resposta inválido da IA. Tente novamente.');
       }
-
-      const data = JSON.parse(jsonMatch[0]);
       
       let aircraft = data.aircraft;
       if (!['A319', 'A320', 'A321'].includes(aircraft)) {
@@ -126,8 +169,8 @@ export default function Home() {
         ...prev,
         aircraft: aircraft as AircraftType,
         registration: data.registration || 'N/A',
-        origin: data.origin || prev.origin,
-        destination: data.destination || prev.destination
+        origin: data.origin || '',
+        destination: data.destination || ''
       }));
       setFlightDate(data.date || currentDateStr);
       setFlightSource('realtime_grounding');
@@ -137,11 +180,18 @@ export default function Home() {
       setInput(prev => ({
         ...prev,
         aircraft: 'OTHER',
-        registration: 'N/A'
+        registration: 'N/A',
+        origin: '',
+        destination: ''
       }));
       setFlightDate('');
       setFlightSource(null);
-      setFlightError(err.message || 'Falha ao buscar dados em tempo real do voo.');
+
+      if (err.message && err.message.includes('GEMINI_API_KEY_MISSING')) {
+        setFlightError('Chave de API do Gemini não configurada.');
+      } else {
+        setFlightError(err.message || 'Falha ao buscar dados em tempo real do voo.');
+      }
     } finally {
       setIsLoadingFlight(false);
     }
@@ -154,9 +204,9 @@ export default function Home() {
     setIsAnalyzingImage(pranchaIndex);
 
     try {
-      const apiKey = "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";
+      const ai = getGeminiClient();
 
-      // Convert files to base64
+      // Convert files to base64 for Gemini
       const parts = await Promise.all(files.map(async (file) => {
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve, reject) => {
@@ -166,9 +216,9 @@ export default function Home() {
         reader.readAsDataURL(file);
         const base64Data = await base64Promise;
         return {
-          type: "image_url",
-          image_url: {
-            url: `data:${file.type};base64,${base64Data}`
+          inlineData: {
+            mimeType: file.type,
+            data: base64Data
           }
         };
       }));
@@ -180,7 +230,7 @@ export default function Home() {
       3. Dimensões totais estimadas que a carga ocupará na prancha: Comprimento, Largura e Altura (em cm).
       4. Verifique se há algum item claramente 'oversize' (muito longo, acima de 150cm) que exigiria overlap de posições.
 
-      Responda OBRIGATORIAMENTE com um bloco JSON estrito contendo as chaves: "weight" (numero), "volumes" (numero), "length" (numero), "width" (numero), "height" (numero), "hasOversize" (booleano).
+      Responda APENAS com o JSON. Sem texto introdutório.
       Exemplo:
       \`\`\`json
       {
@@ -193,39 +243,26 @@ export default function Home() {
       }
       \`\`\``;
 
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "qwen/qwen-2-vl-72b-instruct:free",
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: prompt },
-                ...parts
-              ]
-            }
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: {
+          parts: [
+            ...parts,
+            { text: prompt }
           ]
-        })
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`OpenRouter API error: ${response.status}`);
-      }
-
-      const dataRes = await response.json();
-      const text = dataRes.choices?.[0]?.message?.content;
+      const text = response.text;
 
       if (!text) throw new Error('Resposta vazia da IA');
 
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Formato de resposta inválido da IA');
+      const data = extractJSON(text);
 
-      const data = JSON.parse(jsonMatch[0]);
+      if (!data) {
+        console.error("Raw AI Response:", text);
+        throw new Error('Formato de resposta inválido da IA');
+      }
 
       setInput(prev => {
         const newPranchas = [...prev.pranchas];
@@ -243,9 +280,14 @@ export default function Home() {
         return { ...prev, pranchas: newPranchas };
       });
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Image analysis error:', err);
-      alert('Falha ao analisar a imagem. Tente novamente ou insira os dados manualmente.');
+      
+      if (err.message && err.message.includes('GEMINI_API_KEY_MISSING')) {
+        alert('Chave de API do Gemini não configurada.');
+      } else {
+        alert('Falha ao analisar a imagem. Tente novamente ou insira os dados manualmente.');
+      }
     } finally {
       setIsAnalyzingImage(null);
       // Reset input value so the same file can be selected again
@@ -267,9 +309,6 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-4 text-white/80 text-sm font-medium">
-            <span className="flex items-center gap-1.5 bg-white/20 px-2 py-1 rounded-md text-xs font-bold text-white">
-              <Info className="w-3.5 h-3.5" /> <span className="hidden sm:inline">IA Padrão: </span>GPT-OSS 120B <span className="hidden sm:inline">(Free)</span>
-            </span>
             <span className="hidden sm:flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> QA Certified</span>
             <span className="hidden sm:flex items-center gap-1.5"><CheckCircle className="w-4 h-4" /> System Online</span>
           </div>
@@ -402,7 +441,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                     <Package className="w-3.5 h-3.5" /> Produto LATAM Cargo
@@ -432,7 +471,7 @@ export default function Home() {
                   </select>
                 </div>
                 {input.cargoType === 'ULD' && (
-                  <div>
+                  <div className="col-span-2">
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                       <Package className="w-3.5 h-3.5" /> Tipo de ULD
                     </label>
