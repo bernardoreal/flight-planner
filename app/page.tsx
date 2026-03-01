@@ -778,6 +778,11 @@ export default function Home() {
                 </div>
               </div>
 
+              <AircraftHoldMap 
+                aircraft={manifest.flight_info.aircraft} 
+                allocation={manifest.allocation} 
+              />
+
               <div className="bg-[#1e293b]/30 rounded-lg p-5 border border-slate-700/50 mb-6">
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4 border-b border-slate-700/50 pb-2">Veredito Operacional</h3>
                 
@@ -828,11 +833,6 @@ export default function Home() {
                   </p>
                 </div>
               )}
-
-              <AircraftHoldMap 
-                aircraft={manifest.flight_info.aircraft} 
-                allocation={manifest.allocation} 
-              />
 
               {manifest.dgr_alerts && manifest.dgr_alerts.length > 0 && (
                 <div className="bg-[#e3004a]/10 rounded-lg p-5 border border-[#e3004a]/30 mb-6">

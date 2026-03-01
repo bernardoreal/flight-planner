@@ -44,63 +44,108 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
   };
 
   return (
-    <div className="bg-[#1e293b]/30 rounded-lg p-5 border border-slate-700/50 mb-6 overflow-hidden">
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-6 border-b border-slate-700/50 pb-2">
+    <div className="bg-[#1e293b]/30 rounded-lg p-4 border border-slate-700/50 mb-6 overflow-hidden">
+      <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4 border-b border-slate-700/50 pb-2">
         Mapa de Porões (Visualização de Carregamento)
       </h3>
       
-      <div className="relative flex items-center justify-start sm:justify-center py-6 overflow-x-auto overflow-y-hidden w-full scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent pb-8">
-        {/* Fuselage Outline */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none min-w-[600px] opacity-30 sm:opacity-100">
-          <div className="w-[95%] h-28 border-2 border-slate-700/40 rounded-full relative flex items-center">
-             {/* Cockpit Window */}
-             <div className="absolute left-2 w-4 h-8 border-r-2 border-slate-700/40 rounded-full"></div>
-             {/* Wings */}
-             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-56 border-2 border-slate-700/40 rounded-xl z-[-1] opacity-50"></div>
-             {/* Tail */}
-             <div className="absolute top-1/2 right-2 -translate-y-1/2 w-12 h-24 border-2 border-slate-700/40 rounded-md z-[-1] opacity-50"></div>
-          </div>
+      <div className="relative flex flex-col items-center justify-center py-4 w-full">
+        {/* Scalable Fuselage Background */}
+        <div className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
+           <svg viewBox="0 0 800 200" className="w-full h-full" preserveAspectRatio="none">
+             <path d="M 50,100 C 50,50 150,20 300,20 L 600,20 C 750,20 780,80 780,100 C 780,120 750,180 600,180 L 300,180 C 150,180 50,150 50,100 Z" 
+                   fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-600" />
+             <path d="M 350,20 L 350,180" stroke="currentColor" strokeWidth="1" strokeDasharray="5,5" className="text-slate-700" />
+           </svg>
         </div>
         
-        {/* Holds Content */}
-        <div className="relative z-10 flex items-center gap-2 sm:gap-4 px-4 sm:px-8 min-w-max mx-auto">
+        {/* Holds Content - Flex container that scales */}
+        <div className="relative z-10 flex items-center justify-between w-full max-w-lg px-2 gap-1 sm:gap-2">
           {/* Nose label */}
-          <div className="text-[9px] font-mono text-slate-600 mr-1 sm:mr-2">NOSE</div>
+          <div className="text-[8px] font-mono text-slate-600 hidden sm:block">NOSE</div>
 
           {/* FWD */}
-          {renderPositions(config.fwd, allocation.fwd, 'FWD')}
+          <div className="flex gap-1">
+            {Array.from({ length: config.fwd }).map((_, i) => {
+               const isUsed = i < allocation.fwd;
+               return (
+                <div 
+                  key={`fwd-${i}`} 
+                  className={`h-8 w-6 sm:h-10 sm:w-8 rounded-sm border flex items-center justify-center text-[8px] font-bold transition-all ${
+                    isUsed 
+                      ? 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]' 
+                      : 'bg-slate-800/80 border-slate-600 text-slate-500'
+                  }`}
+                >
+                  {isUsed ? 'CGO' : 'LIV'}
+                </div>
+               );
+            })}
+          </div>
           
           {/* Center Gap for Wing Box */}
-          <div className="w-6 sm:w-12 flex flex-col items-center justify-center mx-1 sm:mx-0">
-            <div className="w-full h-px bg-slate-700/50 mb-1"></div>
-            <span className="text-[7px] sm:text-[8px] text-slate-600 font-mono">C-WING</span>
-            <div className="w-full h-px bg-slate-700/50 mt-1"></div>
+          <div className="flex flex-col items-center justify-center px-1">
+            <div className="w-px h-8 bg-slate-700/50"></div>
+            <span className="text-[6px] text-slate-600 font-mono my-1">WING</span>
+            <div className="w-px h-8 bg-slate-700/50"></div>
           </div>
           
           {/* AFT */}
-          {renderPositions(config.aft, allocation.aft, 'AFT')}
+          <div className="flex gap-1">
+            {Array.from({ length: config.aft }).map((_, i) => {
+               const isUsed = i < allocation.aft;
+               return (
+                <div 
+                  key={`aft-${i}`} 
+                  className={`h-8 w-6 sm:h-10 sm:w-8 rounded-sm border flex items-center justify-center text-[8px] font-bold transition-all ${
+                    isUsed 
+                      ? 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]' 
+                      : 'bg-slate-800/80 border-slate-600 text-slate-500'
+                  }`}
+                >
+                  {isUsed ? 'CGO' : 'LIV'}
+                </div>
+               );
+            })}
+          </div>
           
           {/* BULK */}
           {config.bulk > 0 && (
             <>
-              <div className="w-1 sm:w-2 h-8 border-l border-slate-700/50 border-dashed mx-1 sm:mx-0"></div>
-              {renderPositions(config.bulk, allocation.bulk, 'BLK')}
+              <div className="w-px h-8 border-l border-slate-700/50 border-dashed mx-1"></div>
+              <div className="flex gap-1">
+                {Array.from({ length: config.bulk }).map((_, i) => {
+                   const isUsed = i < allocation.bulk;
+                   return (
+                    <div 
+                      key={`bulk-${i}`} 
+                      className={`h-8 w-6 sm:h-10 sm:w-8 rounded-sm border flex items-center justify-center text-[8px] font-bold transition-all ${
+                        isUsed 
+                          ? 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]' 
+                          : 'bg-slate-800/80 border-slate-600 text-slate-500'
+                      }`}
+                    >
+                      {isUsed ? 'CGO' : 'LIV'}
+                    </div>
+                   );
+                })}
+              </div>
             </>
           )}
 
           {/* Tail label */}
-          <div className="text-[9px] font-mono text-slate-600 ml-1 sm:ml-2">TAIL</div>
+          <div className="text-[8px] font-mono text-slate-600 hidden sm:block">TAIL</div>
         </div>
       </div>
       
-      <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-slate-700/50">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-[#e3004a]/20 border border-[#e3004a]"></div>
-          <span className="text-[10px] text-slate-400 font-mono">Carga Alocada</span>
+      <div className="flex items-center justify-center gap-4 mt-4 pt-3 border-t border-slate-700/50">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm bg-[#e3004a]/20 border border-[#e3004a]"></div>
+          <span className="text-[9px] text-slate-400 font-mono">Ocupado</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-slate-800/80 border border-slate-600"></div>
-          <span className="text-[10px] text-slate-400 font-mono">Livre / Bagagem</span>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm bg-slate-800/80 border border-slate-600"></div>
+          <span className="text-[9px] text-slate-400 font-mono">Livre</span>
         </div>
       </div>
     </div>
