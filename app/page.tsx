@@ -140,7 +140,7 @@ export default function Home() {
       \`\`\``;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-3-flash-preview",
         contents: prompt,
         config: {
           tools: [{ googleSearch: {} }],
@@ -464,30 +464,24 @@ export default function Home() {
                     <Package className="w-3.5 h-3.5" /> Tipo de Carga
                   </label>
                   <select
-                    value={input.cargoType}
-                    onChange={(e) => setInput({ ...input, cargoType: e.target.value as any })}
+                    value={input.cargoType === 'LOOSE' ? 'LOOSE' : `ULD_${input.uldType}`}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'LOOSE') {
+                        setInput({ ...input, cargoType: 'LOOSE', uldType: 'NONE' });
+                      } else {
+                        const uldType = val.split('_')[1] as any;
+                        setInput({ ...input, cargoType: 'ULD', uldType: uldType });
+                      }
+                    }}
                     className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all bg-white"
                   >
                     <option value="LOOSE">Carga Solta (Loose)</option>
-                    <option value="ULD">Contêiner (ULD)</option>
+                    <option value="ULD_AKH">Contêiner (ULD) - AKH (A320 Family)</option>
+                    <option value="ULD_AKE">Contêiner (ULD) - AKE (Widebody)</option>
+                    <option value="ULD_PKC">Contêiner (ULD) - PKC (Pallet)</option>
                   </select>
                 </div>
-                {input.cargoType === 'ULD' && (
-                  <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                      <Package className="w-3.5 h-3.5" /> Tipo de ULD
-                    </label>
-                    <select
-                      value={input.uldType}
-                      onChange={(e) => setInput({ ...input, uldType: e.target.value as any })}
-                      className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all bg-white"
-                    >
-                      <option value="AKH">AKH (A320 Family)</option>
-                      <option value="AKE">AKE (Widebody)</option>
-                      <option value="PKC">PKC (Pallet)</option>
-                    </select>
-                  </div>
-                )}
               </div>
             </div>
           </div>
