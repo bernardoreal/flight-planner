@@ -60,6 +60,8 @@ export interface ManifestResult {
     aft: number;
     bulk: number;
   };
+  max_cargo_weight: number;
+  dov_alert: string;
 }
 
 const FLEET_CONFIG = {
@@ -95,7 +97,9 @@ export function generateManifest(input: CargoInput): ManifestResult {
       json_valid: true,
       stability: 'N/A',
       netAvailability: 0,
-      allocation: { fwd: 0, aft: 0, bulk: 0 }
+      allocation: { fwd: 0, aft: 0, bulk: 0 },
+      max_cargo_weight: 0,
+      dov_alert: ''
     };
   }
 
@@ -379,6 +383,22 @@ export function generateManifest(input: CargoInput): ManifestResult {
   // 7. Mandatory Tie-down
   warnings.push('MANDATÓRIO: Garantir amarração (Tie-down) conforme WBM para evitar deslocamento em voo.');
 
+  // 8. DOV Alert & Max Weight
+  const max_cargo_weight = (config.cargoMax * 900) + (config.hasBulk ? 1000 : 0);
+  let dov_alert = '';
+  const totalRequestedPos = posicoes + bulk;
+  
+  if (totalRequestedPos > 0) {
+    const totalAvailableForCargo = config.cargoMax + (config.hasBulk ? 1 : 0);
+    const usagePercent = totalRequestedPos / totalAvailableForCargo;
+    
+    if (usagePercent >= 0.8) {
+      dov_alert = `ALERTA DOV: Alto risco de corte de carga. Solicitando ${totalRequestedPos} posições de porão. A aeronave requer posições e margem de peso para bagagens e combustível, o que impacta diretamente o balanceamento (CG). A aprovação final depende do Despachante Operacional de Voo (DOV).`;
+    } else {
+      dov_alert = `AVISO DOV: Possibilidade de corte. A aprovação final de ${totalRequestedPos} posições depende da equipe do DOV, considerando o peso/volume de bagagens e combustível para o balanceamento (CG).`;
+    }
+  }
+
   if (status === 'REJEITADO') {
     posicoes = 0;
     fwd = 0;
@@ -407,6 +427,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
     json_valid: true,
     stability,
     netAvailability: Math.max(0, config.totalPos - config.bagsPos - posicoes - bulk),
-    allocation: { fwd, aft, bulk }
+    allocation: { fwd, aft, bulk },
+    max_cargo_weight,
+    dov_alert
   };
 }

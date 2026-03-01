@@ -714,6 +714,10 @@ export default function Home() {
                     <span className="font-bold text-slate-100">{manifest.posicoes} <span className="text-[10px] text-slate-500 font-sans font-normal ml-2">(Peso/Volume/Overlap)</span></span>
                   </div>
                   <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Peso Máx. Estimado (Carga):</span>
+                    <span className="font-bold text-emerald-400">{manifest.max_cargo_weight.toLocaleString('pt-BR')} kg <span className="text-[10px] text-slate-500 font-sans font-normal ml-2">(Capacidade Teórica)</span></span>
+                  </div>
+                  <div className="flex justify-between items-center">
                     <span className="text-slate-400">Alocação Sugerida:</span>
                     <span className="font-bold text-slate-100">
                       {manifest.allocation.fwd} FWD / {manifest.allocation.aft} AFT / {manifest.allocation.bulk} BULK
@@ -739,6 +743,18 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
+              {manifest.dov_alert && (
+                <div className={`rounded-lg p-5 border mb-6 ${manifest.dov_alert.includes('ALERTA') ? 'bg-[#e3004a]/10 border-[#e3004a]/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                  <h3 className={`text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2 ${manifest.dov_alert.includes('ALERTA') ? 'text-[#e3004a]' : 'text-amber-500'}`}>
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Aviso de Despacho (DOV)
+                  </h3>
+                  <p className={`text-xs font-mono leading-relaxed ${manifest.dov_alert.includes('ALERTA') ? 'text-slate-200 font-bold' : 'text-slate-300'}`}>
+                    {manifest.dov_alert}
+                  </p>
+                </div>
+              )}
 
               <AircraftHoldMap 
                 aircraft={manifest.flight_info.aircraft} 
@@ -803,6 +819,8 @@ export default function Home() {
                       flight_info: manifest.flight_info,
                       status: manifest.status,
                       posicoes: manifest.posicoes,
+                      max_cargo_weight: manifest.max_cargo_weight,
+                      dov_alert: manifest.dov_alert,
                       cg_impact: manifest.cg_impact,
                       fuel_penalty: manifest.fuel_penalty,
                       esg_impact: manifest.esg_impact,
