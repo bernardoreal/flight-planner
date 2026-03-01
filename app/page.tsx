@@ -94,7 +94,7 @@ export default function Home() {
       const currentDateStr = now.toLocaleDateString('pt-BR');
       const currentTimeStr = now.toLocaleTimeString('pt-BR');
       
-      const prompt = `ATUE COMO UM ESPECIALISTA EM AVIAÇÃO E RASTREAMENTO DE VOOS EM TEMPO REAL.
+      const prompt = `ATUE COMO UM ESPECIALISTA SÊNIOR EM OPERAÇÕES AÉREAS E RASTREAMENTO DE VOOS.
       
       Sua missão é descobrir a MATRÍCULA (Registration/Tail Number) EXATA e CONFIRMADA da aeronave para o voo ${input.flightCode}.
       
@@ -102,12 +102,12 @@ export default function Home() {
       - Data: ${currentDateStr}
       - Hora: ${currentTimeStr}
       
-      PROTOCOLO DE VERIFICAÇÃO RIGOROSA (GROUNDING):
-      1. Realize buscas específicas no Google para o voo "${input.flightCode}" em sites confiáveis:
-         - "FlightRadar24 ${input.flightCode}"
-         - "FlightAware ${input.flightCode}"
-         - "FlightStats ${input.flightCode}"
+      PROTOCOLO DE VERIFICAÇÃO RIGOROSA (GROUNDING OBRIGATÓRIO):
+      1. Realize buscas EXTENSIVAS no Google para o voo "${input.flightCode}" focando em sites de rastreamento em tempo real:
+         - "FlightRadar24 ${input.flightCode} live tracking"
+         - "FlightAware ${input.flightCode} status"
          - "RadarBox ${input.flightCode}"
+         - "FlightStats ${input.flightCode}"
       
       2. REGRA DE DATA E HORÁRIO (CRUCIAL):
          - Identifique o horário de partida programado (STD) do voo de HOJE (${currentDateStr}).
@@ -117,13 +117,15 @@ export default function Home() {
            - Isso se aplica mesmo que o voo de hoje esteja em rota. Se já saiu, queremos o próximo (amanhã).
            - Exceção: Se o voo estiver MUITO atrasado e ainda não saiu, considere como 'não decolou' (Caso 1).
       
-      3. CRITÉRIO DE DESEMPATE:
-         - Se o FlightRadar24 mostrar uma matrícula e o FlightAware mostrar outra, dê preferência àquele que mostra o status "Live" ou "Active" mais recente.
-         - A matrícula deve seguir o padrão da companhia (ex: LATAM Brasil usa PT-***, PR-***).
+      3. VALIDAÇÃO CRUZADA (OBRIGATÓRIA):
+         - NÃO CONFIE EM APENAS UMA FONTE. Tente confirmar a matrícula em pelo menos dois sites diferentes (ex: FlightRadar24 e FlightAware).
+         - Se houver divergência, confie na fonte que mostra o status "Live", "Active" ou "En Route" mais recente.
+         - Verifique se a matrícula segue o padrão da companhia aérea (ex: LATAM Brasil usa PT-***, PR-***).
       
       4. REGRAS DE SAÍDA:
          - Modelo: Identifique se é A319, A320, A321, B767, B787, B777. Mapeie para "A319", "A320", "A321" ou "OTHER".
-         - Matrícula: DEVE ser a real (ex: PT-MXG, PR-MYX). Se não encontrar, retorne "N/A".
+         - Matrícula: DEVE ser a real e confirmada (ex: PT-MXG, PR-MYX).
+         - SE NÃO TIVER CERTEZA ABSOLUTA OU NÃO ENCONTRAR DADOS CONFIRMADOS, RETORNE "N/A" NO CAMPO REGISTRATION. NÃO ADIVINHE.
          - Origem/Destino: Use os códigos IATA reais (ex: GRU, MIA, LIS).
          - Data: A data do voo retornado (HOJE ou AMANHÃ).
       
@@ -135,12 +137,12 @@ export default function Home() {
         "origin": "GRU",
         "destination": "MIA",
         "date": "DD/MM/YYYY",
-        "reasoning": "Explique brevemente aqui qual fonte confirmou a matrícula e o status do voo."
+        "reasoning": "CONFIRMADO: FlightRadar24 mostra PT-MXG como 'Scheduled' para hoje às 23:00. FlightAware corrobora."
       }
       \`\`\``;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-pro-preview",
         contents: prompt,
         config: {
           tools: [{ googleSearch: {} }],
@@ -244,7 +246,7 @@ export default function Home() {
       \`\`\``;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-pro-preview",
         contents: {
           parts: [
             ...parts,
