@@ -315,10 +315,10 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Input Form */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+        <div className="lg:col-span-7 grid grid-cols-1 lg:grid-cols-2 gap-4 content-start">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 col-span-1">
             <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
               <Plane className="w-4 h-4 text-[#1b0088]" />
               Parâmetros do Voo
@@ -409,8 +409,10 @@ export default function Home() {
                 </div>
               </div>
             </div>
+          </div>
 
-            <h2 className="text-base font-semibold mb-5 mt-8 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 col-span-1">
+            <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
               <MapPin className="w-4 h-4 text-[#1b0088]" />
               Rota e Produto
             </h2>
@@ -488,8 +490,10 @@ export default function Home() {
                 )}
               </div>
             </div>
+          </div>
 
-            <h2 className="text-base font-semibold mb-5 mt-8 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 col-span-1 lg:col-span-2">
+            <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
               <ShieldAlert className="w-4 h-4 text-[#1b0088]" />
               Especificações da Carga
             </h2>
@@ -735,7 +739,7 @@ export default function Home() {
         </div>
 
         {/* Output Manifest */}
-        <div className="lg:col-span-7">
+        <div className="lg:col-span-5">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
