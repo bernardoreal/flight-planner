@@ -1,0 +1,7 @@
+name = "latam-cargo-ops"
+compatibility_date = "2024-03-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "out"
+
+[build]
+command = "npm run build"

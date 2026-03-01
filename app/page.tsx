@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package } from 'lucide-react';
+import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera } from 'lucide-react';
 import { AircraftType, CargoInput, ManifestResult, generateManifest } from '@/lib/cargo-logic';
 import { GoogleGenAI } from '@google/genai';
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
@@ -15,11 +15,19 @@ export default function Home() {
     productType: 'GENERAL',
     aircraft: 'A320',
     registration: 'PR-MYX',
-    weight: 1500,
-    volumes: 50,
-    length: 120,
-    width: 120,
-    height: 100,
+    pranchas: [
+      {
+        id: '1',
+        weight: 1500,
+        volumes: 50,
+        length: 120,
+        width: 120,
+        height: 100,
+        hasOversize: false,
+        oversizeVolumes: 0,
+        oversizeWeight: 0,
+      }
+    ],
     isICE: false,
     isAVI: false,
     isDGR: false,
@@ -35,6 +43,7 @@ export default function Home() {
   const [flightError, setFlightError] = useState('');
   const [flightSource, setFlightSource] = useState<'realtime_grounding' | null>(null);
   const [flightDate, setFlightDate] = useState<string>('');
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState<number | null>(null);
 
   // Real-time validation: Update manifest whenever input changes
   useEffect(() => {
@@ -128,6 +137,93 @@ export default function Home() {
       setFlightError(err.message || 'Falha ao buscar dados em tempo real do voo.');
     } finally {
       setIsLoadingFlight(false);
+    }
+  };
+
+  const handleImageAnalysis = async (e: React.ChangeEvent<HTMLInputElement>, pranchaIndex: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsAnalyzingImage(pranchaIndex);
+
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('Chave da API do Gemini não encontrada no ambiente.');
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
+
+      // Convert file to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = error => reject(error);
+      });
+      reader.readAsDataURL(file);
+      const base64Data = await base64Promise;
+
+      const prompt = `Analise esta foto de uma prancha/pallet de carga no terminal.
+      Estime os seguintes valores baseados na imagem (se houver etiquetas visíveis, leia-as; caso contrário, faça uma estimativa visual profissional):
+      1. Peso total aproximado (em kg).
+      2. Quantidade de volumes (caixas/peças).
+      3. Dimensões totais da prancha: Comprimento, Largura e Altura (em cm).
+      4. Verifique se há algum item claramente 'oversize' (muito longo, acima de 150cm) que exigiria overlap de posições.
+
+      Responda OBRIGATORIAMENTE com um bloco JSON estrito contendo as chaves: "weight" (numero), "volumes" (numero), "length" (numero), "width" (numero), "height" (numero), "hasOversize" (booleano).
+      Exemplo:
+      \`\`\`json
+      {
+        "weight": 850,
+        "volumes": 24,
+        "length": 120,
+        "width": 100,
+        "height": 110,
+        "hasOversize": false
+      }
+      \`\`\``;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: {
+          parts: [
+            { inlineData: { data: base64Data, mimeType: file.type } },
+            { text: prompt }
+          ]
+        }
+      });
+
+      const text = response.text;
+      if (!text) throw new Error('Resposta vazia da IA');
+
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Formato de resposta inválido da IA');
+
+      const data = JSON.parse(jsonMatch[0]);
+
+      setInput(prev => {
+        const newPranchas = [...prev.pranchas];
+        newPranchas[pranchaIndex] = {
+          ...newPranchas[pranchaIndex],
+          weight: data.weight || newPranchas[pranchaIndex].weight,
+          volumes: data.volumes || newPranchas[pranchaIndex].volumes,
+          length: data.length || newPranchas[pranchaIndex].length,
+          width: data.width || newPranchas[pranchaIndex].width,
+          height: data.height || newPranchas[pranchaIndex].height,
+          hasOversize: data.hasOversize || false,
+          oversizeVolumes: data.hasOversize ? 1 : 0,
+          oversizeWeight: data.hasOversize ? 100 : 0,
+        };
+        return { ...prev, pranchas: newPranchas };
+      });
+
+    } catch (err) {
+      console.error('Image analysis error:', err);
+      alert('Falha ao analisar a imagem. Tente novamente ou insira os dados manualmente.');
+    } finally {
+      setIsAnalyzingImage(null);
+      // Reset input value so the same file can be selected again
+      e.target.value = '';
     }
   };
 
@@ -331,56 +427,194 @@ export default function Home() {
             </h2>
             
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Peso Total (kg)</label>
-                  <input
-                    type="number"
-                    value={input.weight}
-                    onChange={(e) => setInput({ ...input, weight: Number(e.target.value) })}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
-                  />
+              {input.pranchas.map((prancha, index) => (
+                <div key={prancha.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 relative">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-sm font-bold text-slate-700">Prancha {index + 1}</h3>
+                      <label className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-md cursor-pointer hover:bg-indigo-200 transition-colors text-xs font-semibold">
+                        {isAnalyzingImage === index ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Camera className="w-3.5 h-3.5" />
+                        )}
+                        {isAnalyzingImage === index ? 'Analisando...' : 'Analisar Foto'}
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          capture="environment"
+                          className="hidden" 
+                          onChange={(e) => handleImageAnalysis(e, index)}
+                          disabled={isAnalyzingImage !== null}
+                        />
+                      </label>
+                    </div>
+                    {input.pranchas.length > 1 && (
+                      <button 
+                        onClick={() => {
+                          const newPranchas = [...input.pranchas];
+                          newPranchas.splice(index, 1);
+                          setInput({...input, pranchas: newPranchas});
+                        }}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium"
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Peso (kg)</label>
+                      <input
+                        type="number"
+                        value={prancha.weight}
+                        onChange={(e) => {
+                          const newPranchas = [...input.pranchas];
+                          newPranchas[index].weight = Number(e.target.value);
+                          setInput({...input, pranchas: newPranchas});
+                        }}
+                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Qtd. Volumes</label>
+                      <input
+                        type="number"
+                        value={prancha.volumes}
+                        onChange={(e) => {
+                          const newPranchas = [...input.pranchas];
+                          newPranchas[index].volumes = Number(e.target.value);
+                          setInput({...input, pranchas: newPranchas});
+                        }}
+                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono bg-white"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Comp. (cm)</label>
+                      <input
+                        type="number"
+                        value={prancha.length}
+                        onChange={(e) => {
+                          const newPranchas = [...input.pranchas];
+                          newPranchas[index].length = Number(e.target.value);
+                          setInput({...input, pranchas: newPranchas});
+                        }}
+                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Larg. (cm)</label>
+                      <input
+                        type="number"
+                        value={prancha.width}
+                        onChange={(e) => {
+                          const newPranchas = [...input.pranchas];
+                          newPranchas[index].width = Number(e.target.value);
+                          setInput({...input, pranchas: newPranchas});
+                        }}
+                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Alt. (cm)</label>
+                      <input
+                        type="number"
+                        value={prancha.height}
+                        onChange={(e) => {
+                          const newPranchas = [...input.pranchas];
+                          newPranchas[index].height = Number(e.target.value);
+                          setInput({...input, pranchas: newPranchas});
+                        }}
+                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors bg-white">
+                      <input 
+                        type="checkbox" 
+                        checked={prancha.hasOversize} 
+                        onChange={(e) => {
+                          const newPranchas = [...input.pranchas];
+                          newPranchas[index].hasOversize = e.target.checked;
+                          newPranchas[index].oversizeVolumes = e.target.checked ? 1 : 0;
+                          newPranchas[index].oversizeWeight = e.target.checked ? 100 : 0;
+                          setInput({...input, pranchas: newPranchas});
+                        }} 
+                        className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
+                      />
+                      <span className="text-sm font-medium text-slate-700">Contém itens Oversize (Requer Overlap Físico)</span>
+                    </label>
+                    
+                    {prancha.hasOversize && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="grid grid-cols-2 gap-4 mt-3 p-4 bg-white rounded-lg border border-slate-200"
+                      >
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Qtd. Vols Oversize</label>
+                          <input
+                            type="number"
+                            value={prancha.oversizeVolumes}
+                            onChange={(e) => {
+                              const newPranchas = [...input.pranchas];
+                              newPranchas[index].oversizeVolumes = Number(e.target.value);
+                              setInput({...input, pranchas: newPranchas});
+                            }}
+                            min="1"
+                            className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Peso Oversize (kg)</label>
+                          <input
+                            type="number"
+                            value={prancha.oversizeWeight}
+                            onChange={(e) => {
+                              const newPranchas = [...input.pranchas];
+                              newPranchas[index].oversizeWeight = Number(e.target.value);
+                              setInput({...input, pranchas: newPranchas});
+                            }}
+                            min="1"
+                            className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Qtd. Volumes</label>
-                  <input
-                    type="number"
-                    value={input.volumes}
-                    onChange={(e) => setInput({ ...input, volumes: Number(e.target.value) })}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
-                  />
-                </div>
-              </div>
+              ))}
               
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Comp. (cm)</label>
-                  <input
-                    type="number"
-                    value={input.length}
-                    onChange={(e) => setInput({ ...input, length: Number(e.target.value) })}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Larg. (cm)</label>
-                  <input
-                    type="number"
-                    value={input.width}
-                    onChange={(e) => setInput({ ...input, width: Number(e.target.value) })}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Alt. (cm)</label>
-                  <input
-                    type="number"
-                    value={input.height}
-                    onChange={(e) => setInput({ ...input, height: Number(e.target.value) })}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
-                  />
-                </div>
-              </div>
+              <button
+                onClick={() => {
+                  setInput({
+                    ...input,
+                    pranchas: [
+                      ...input.pranchas,
+                      {
+                        id: Math.random().toString(36).substr(2, 9),
+                        weight: 0,
+                        volumes: 1,
+                        length: 120,
+                        width: 120,
+                        height: 100,
+                        hasOversize: false,
+                        oversizeVolumes: 0,
+                        oversizeWeight: 0
+                      }
+                    ]
+                  });
+                }}
+                className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-medium hover:border-[#1b0088] hover:text-[#1b0088] transition-colors flex items-center justify-center gap-2"
+              >
+                + Adicionar Prancha
+              </button>
 
               <div className="pt-4">
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Cargas Especiais (Segregação)</label>

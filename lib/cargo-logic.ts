@@ -1,5 +1,17 @@
 export type AircraftType = 'A319' | 'A320' | 'A321' | 'OTHER';
 
+export interface Prancha {
+  id: string;
+  weight: number;
+  volumes: number;
+  length: number;
+  width: number;
+  height: number;
+  hasOversize: boolean;
+  oversizeVolumes: number;
+  oversizeWeight: number;
+}
+
 export interface CargoInput {
   flightCode: string;
   origin: string;
@@ -8,11 +20,7 @@ export interface CargoInput {
   aircraft: AircraftType;
   registration: string;
   flightDate?: string;
-  weight: number; // kg
-  volumes: number; // quantidade de volumes soltos
-  length: number; // cm
-  width: number; // cm
-  height: number; // cm
+  pranchas: Prancha[];
   isICE: boolean;
   isAVI: boolean;
   isDGR: boolean;
@@ -53,25 +61,22 @@ export interface ManifestResult {
 }
 
 const FLEET_CONFIG = {
-  'A319': { totalPos: 4, bagsPos: 2, cargoMax: 2, hasBulk: false, iceLimit: 120, uldMax: 4 },
-  'A320': { totalPos: 7, bagsPos: 3, cargoMax: 4, hasBulk: true, iceLimit: 200, uldMax: 7 },
-  'A321': { totalPos: 10, bagsPos: 3, cargoMax: 7, hasBulk: true, iceLimit: 200, uldMax: 10 },
+  'A319': { totalPos: 4, bagsPos: 2, cargoMax: 2, iceLimit: 120, hasBulk: false, uldMax: 0 },
+  'A320': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7 },
+  'A321': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10 },
+  'OTHER': { totalPos: 0, bagsPos: 0, cargoMax: 0, iceLimit: 0, hasBulk: false, uldMax: 0 }
 };
 
 export function generateManifest(input: CargoInput): ManifestResult {
-  const warnings: string[] = [];
-  const dgr_alerts: string[] = [];
-  let status: 'OK' | 'ALERTA' | 'REJEITADO' = 'OK';
+  const validation_code = `PYTHON_HASH_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
   
-  const validation_code = 'PY_HASH_' + Math.random().toString(36).substring(2, 10).toUpperCase();
-
-  // 2. Aircraft Validation
+  // 1. Basic Validation
   if (input.aircraft === 'OTHER') {
     return {
       flight_info: {
-        code: input.flightCode || 'N/A',
-        route: `${input.origin || 'XXX'} - ${input.destination || 'XXX'}`,
-        aircraft: 'OTHER',
+        code: input.flightCode || 'LA0000',
+        route: `${(input.origin || 'XXX').toUpperCase()} - ${(input.destination || 'XXX').toUpperCase()}`,
+        aircraft: input.aircraft,
         registration: input.registration || 'N/A',
         date: input.flightDate || new Date().toLocaleDateString('pt-BR')
       },
@@ -80,7 +85,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
       esg_impact: 'N/A',
       co2_emissions: 0,
       fuel_penalty: 'N/A',
-      warnings: ['⚠️ Aeronave não homologada para este sistema.'],
+      warnings: ['CRÍTICO: Aeronave não homologada para este sistema.'],
       dgr_alerts: [],
       cg_impact: 'N/A',
       cubage_alert: false,
@@ -97,6 +102,12 @@ export function generateManifest(input: CargoInput): ManifestResult {
   // 3. Physical Constraints, Cubage & Positions
   let cubage_alert = false;
   let posicoes = 0;
+  let status: 'OK' | 'ALERTA' | 'REJEITADO' = 'OK';
+  const warnings: string[] = [];
+  const dgr_alerts: string[] = [];
+  
+  const totalWeight = input.pranchas.reduce((sum, p) => sum + p.weight, 0);
+  const totalVolumes = input.pranchas.reduce((sum, p) => sum + p.volumes, 0);
   
   // Rule 1: Barrow/Container Limit or ULD Limit
   if (input.cargoType === 'ULD') {
@@ -121,67 +132,105 @@ export function generateManifest(input: CargoInput): ManifestResult {
       uldMaxWeight = 1134;
     }
     
-    const weightPos = Math.ceil((input.weight + uldTare) / uldMaxWeight);
-    posicoes = Math.max(weightPos, Math.ceil(input.volumes / 1)); // Assuming 1 ULD = 1 volume in input
+    const weightPos = Math.ceil((totalWeight + uldTare) / uldMaxWeight);
+    posicoes = Math.max(weightPos, input.pranchas.length); // Assuming 1 ULD = 1 prancha entry
     if (posicoes > config.uldMax) {
       warnings.push(`CRÍTICO: Limite de ULDs excedido para ${input.aircraft} (Max: ${config.uldMax} ${input.uldType}).`);
       status = 'REJEITADO';
     }
   } else {
-    // LOOSE CARGO: 600kg or 75 volumes per position
-    const weightPos = Math.ceil(input.weight / 600);
-    const volPos = Math.ceil(input.volumes / 75);
-    posicoes = Math.max(weightPos, volPos);
-    
-    if (volPos > weightPos) {
-      warnings.push('INFO: Limite cúbico atingido. Posições calculadas com base na quantidade de volumes (75 vols/pos) em vez do peso.');
-      cubage_alert = true;
-    }
+    // LOOSE CARGO:
+    input.pranchas.forEach((p, index) => {
+      const pranchaNum = index + 1;
+      let pranchaPos = 0;
+      
+      // Regra LATAM & Dnata: 900kg real ou 600kg cubado por posição
+      const weightPos = Math.ceil(p.weight / 900);
+      
+      // Cálculo do peso cubado (Fator de conversão padrão IATA: 167 kg/m³)
+      const volumeM3 = (p.length * p.width * p.height) / 1000000;
+      const cubedWeight = volumeM3 * 167;
+      const cubedPos = Math.ceil(cubedWeight / 600);
+      
+      // Limite de contagem de volumes (75 volumes soltos por posição)
+      const volCountPos = Math.ceil(p.volumes / 75);
+      
+      // A alocação final é o maior valor entre a necessidade por peso real, peso cubado e contagem de volumes
+      pranchaPos = Math.max(weightPos, cubedPos, volCountPos, 1); // Garante no mínimo 1 posição
+      
+      // Se for um único volume indivisível e for muito comprido, ele vai dar overlap físico inevitável
+      if (p.volumes === 1 && p.length > 150) {
+        const lengthPos = Math.ceil(p.length / 150);
+        if (lengthPos > pranchaPos) {
+          pranchaPos = lengthPos;
+          warnings.push(`INFO (Prancha ${pranchaNum}): Volume único longo detectado (${p.length}cm). Ocupará ${lengthPos} posições por Overlap físico.`);
+        }
+      } else if (p.volumes > 1 && p.length > 150) {
+        warnings.push(`INFO (Prancha ${pranchaNum}): Dimensões da prancha (${p.length}x${p.width}x${p.height}cm) indicam carga espalhada. Como são ${p.volumes} volumes soltos, assumimos que podem ser rearranjados no porão para otimizar espaço, ocupando ${pranchaPos} posição(ões) com base no peso real (${p.weight}kg), cubado (${Math.round(cubedWeight)}kg) e contagem de volumes.`);
+      }
+      
+      // Tratamento de Overlap Explícito (Oversize)
+      if (p.hasOversize && p.oversizeVolumes > 0) {
+        // Cada volume oversize ocupa pelo menos 2 posições por overlap
+        const oversizePos = p.oversizeVolumes * 2;
+        
+        // Peso restante da carga "normal"
+        const normalWeight = Math.max(0, p.weight - p.oversizeWeight);
+        const normalWeightPos = Math.ceil(normalWeight / 900);
+        
+        // Recalcula posições totais: posições do oversize + posições do peso normal
+        const totalPosWithOversize = oversizePos + normalWeightPos;
+        
+        if (totalPosWithOversize > pranchaPos) {
+          pranchaPos = totalPosWithOversize;
+          warnings.push(`INFO (Prancha ${pranchaNum}): Overlap explícito detectado. ${p.oversizeVolumes} volume(s) oversize ocupando ${oversizePos} posições. Carga restante (${normalWeight}kg) ocupa ${normalWeightPos} posição(ões). Total: ${pranchaPos} posições.`);
+        } else {
+          warnings.push(`INFO (Prancha ${pranchaNum}): Overlap explícito detectado (${p.oversizeVolumes} vols), mas o peso/volume total já exigia ${pranchaPos} posições, absorvendo o overlap.`);
+        }
+      }
+      
+      if (volCountPos > Math.max(weightPos, cubedPos) && (!p.hasOversize || pranchaPos === volCountPos)) {
+        warnings.push(`INFO (Prancha ${pranchaNum}): A quantidade de volumes (${p.volumes} vols) foi o fator determinante para alocar ${pranchaPos} posições (Limite: 75 vols/posição).`);
+        cubage_alert = true;
+      }
+      
+      if (p.height > 114) {
+        warnings.push(`CRÍTICO (Prancha ${pranchaNum}): Altura máxima excedida (114cm).`);
+        status = 'REJEITADO';
+      }
+      
+      if (p.width > 145) {
+        warnings.push(`AVISO (Prancha ${pranchaNum}): Base Width > 145cm. Requer verificação de compatibilidade.`);
+        if (status !== 'REJEITADO') status = 'ALERTA';
+      }
+      
+      if (p.length > 220) {
+        warnings.push(`AVISO (Prancha ${pranchaNum}): Comprimento > 220cm. Requer amarração especial.`);
+        if (status !== 'REJEITADO') status = 'ALERTA';
+      }
+      
+      // Floor load calculation (kg/m² and kg/inch)
+      const areaM2 = (p.length / 100) * (p.width / 100);
+      const floorLoadArea = areaM2 > 0 ? p.weight / areaM2 : 0;
+      
+      // Running load (kg/inch) - Airbus WBM standard check
+      const lengthInches = p.length / 2.54;
+      const runningLoad = lengthInches > 0 ? p.weight / lengthInches : 0;
+      
+      if (floorLoadArea > 732) { // Airbus standard area load limit
+        warnings.push(`CRÍTICO (Prancha ${pranchaNum}): Limite de Area Load excedido (${Math.round(floorLoadArea)} kg/m² > 732 kg/m²). Necessário uso de pranchas de distribuição (Shoring).`);
+        if (status !== 'REJEITADO') status = 'ALERTA';
+      }
+      
+      if (runningLoad > 26.8) { // Airbus standard running load limit (approx 1500 lb/ft)
+        warnings.push(`CRÍTICO (Prancha ${pranchaNum}): Limite de Running Load excedido (${runningLoad.toFixed(1)} kg/inch). Risco estrutural ao piso do porão.`);
+        status = 'REJEITADO';
+      }
+      
+      posicoes += pranchaPos;
+    });
   }
   
-  if (input.height > 114) {
-    warnings.push('CRÍTICO: Altura máxima excedida (114cm).');
-    status = 'REJEITADO';
-  }
-  
-  if (input.width > 145) {
-    warnings.push('AVISO: Base Width > 145cm. Requer verificação de compatibilidade.');
-    if (status !== 'REJEITADO') status = 'ALERTA';
-  }
-  
-  if (input.length > 220) {
-    warnings.push('AVISO: Comprimento > 220cm. Requer amarração especial.');
-    if (status !== 'REJEITADO') status = 'ALERTA';
-  }
-  
-  // Rule 2: Overlap Consolidation (Only for LOOSE)
-  if (input.cargoType === 'LOOSE' && input.length > 150) {
-    if (posicoes < 2) {
-      posicoes = 2; // Minimum 2 positions due to overlap
-      warnings.push('INFO: Overlap detectado (>150cm). Mínimo de 2 posições alocadas.');
-    } else {
-      warnings.push('INFO: Overlap detectado (>150cm). Carga miúda consolidada com sucesso no espaço morto das posições de overlap.');
-    }
-  }
-  
-  // Floor load calculation (kg/m² and kg/inch)
-  const areaM2 = (input.length / 100) * (input.width / 100);
-  const floorLoadArea = areaM2 > 0 ? input.weight / areaM2 : 0;
-  
-  // Running load (kg/inch) - Airbus WBM standard check
-  const lengthInches = input.length / 2.54;
-  const runningLoad = lengthInches > 0 ? input.weight / lengthInches : 0;
-  
-  if (floorLoadArea > 732) { // Airbus standard area load limit
-    warnings.push(`CRÍTICO: Limite de Area Load excedido (${Math.round(floorLoadArea)} kg/m² > 732 kg/m²). Necessário uso de pranchas de distribuição (Shoring).`);
-    if (status !== 'REJEITADO') status = 'ALERTA';
-  }
-  
-  if (runningLoad > 26.8) { // Airbus standard running load limit (approx 1500 lb/ft)
-    warnings.push(`CRÍTICO: Limite de Running Load excedido (${runningLoad.toFixed(1)} kg/inch). Risco estrutural ao piso do porão.`);
-    status = 'REJEITADO';
-  }
-
   // 4. Special Loads & Product Types & DGR Matrix
   const hasLithiumBulk = input.dgrTypes?.includes('LITHIUM_BULK') || false;
   const hasLithiumEquip = input.dgrTypes?.includes('LITHIUM_EQUIP') || false;
@@ -240,7 +289,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
     status = 'REJEITADO';
   }
   
-  if (hasIce && input.weight > config.iceLimit) {
+  if (hasIce && totalWeight > config.iceLimit) {
     warnings.push(`CRÍTICO: Limite de Gelo Seco excedido para ${input.aircraft} (${config.iceLimit}kg).`);
     status = 'REJEITADO';
   }
@@ -299,10 +348,10 @@ export function generateManifest(input: CargoInput): ManifestResult {
 
   // 6. ESG / Fuel Efficiency / CO2
   // Rough estimate: 0.15 kg of CO2 per kg of cargo for a standard 2h flight.
-  const co2_emissions = Math.round(input.weight * 0.15);
+  const co2_emissions = Math.round(totalWeight * 0.15);
   let esg_impact = `Emissão estimada: +${co2_emissions} kg CO2 (Scope 3). `;
   
-  if (input.weight > 2000) {
+  if (totalWeight > 2000) {
     esg_impact += 'Alto impacto no Fuel Burn. Sugestão: Otimizar ZFW CG para reduzir arrasto.';
   } else {
     esg_impact += 'Impacto marginal no Fuel Burn (Dentro da cota verde).';
