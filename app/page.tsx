@@ -162,7 +162,7 @@ export default function Home() {
       }
       \`\`\``;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY! });
+      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_PIXOR! });
       const model = ai.models.generateContent({
         model: AI_MODEL,
         contents: prompt,
@@ -280,7 +280,7 @@ export default function Home() {
       }
       \`\`\``;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY! });
+      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_PIXOR! });
       
       const parts = await Promise.all(images.map(async (img) => {
         const file = img.file;
