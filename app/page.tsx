@@ -11,11 +11,13 @@ import { AircraftHoldMap } from '@/components/AircraftHoldMap';
 const AI_MODEL = 'gemini-3-flash-preview';
 
 export default function Home() {
+
+  const [palletCount, setPalletCount] = useState<number>(1);
+
   const [input, setInput] = useState<CargoInput>({
     flightCode: '',
     origin: '',
     destination: '',
-    productType: 'GENERAL',
     aircraft: 'A320',
     registration: 'PR-MYX',
     pranchas: [
@@ -66,7 +68,11 @@ export default function Home() {
     try {
       const savedInput = localStorage.getItem('latamCargoInput');
       if (savedInput) {
-        setInput(JSON.parse(savedInput));
+        const parsed = JSON.parse(savedInput);
+        setInput(parsed);
+        if (parsed.pranchas) {
+          setPalletCount(parsed.pranchas.length);
+        }
       }
     } catch (e) {
       console.error('Failed to load saved input', e);
@@ -405,190 +411,181 @@ export default function Home() {
 
       <main className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Input Form */}
-        <div className="lg:col-span-7 grid grid-cols-1 lg:grid-cols-2 gap-4 content-start">
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 col-span-1">
-            <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
-              <Plane className="w-4 h-4 text-[#1b0088]" />
-              Parâmetros do Voo
-            </h2>
-            
-            <div className="mb-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Código do Voo</label>
-                  <input
-                    type="text"
-                    value={input.flightCode}
-                    onChange={(e) => setInput({ ...input, flightCode: e.target.value.toUpperCase() })}
-                    onKeyDown={(e) => e.key === 'Enter' && handleFetchFlight()}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
-                    placeholder="Ex: LA3465"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Data do Voo</label>
-                  <input
-                    type="date"
-                    value={selectedSearchDate}
-                    onChange={(e) => setSelectedSearchDate(e.target.value)}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
-                  />
-                </div>
-              </div>
-              
-              <button 
-                onClick={handleFetchFlight}
-                disabled={isLoadingFlight || !input.flightCode}
-                className="w-full bg-[#e3004a] hover:bg-[#e3004a]/90 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                {isLoadingFlight ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-                <span>Buscar Dados em Tempo Real</span>
-              </button>
-              
-              {flightError && (
-                <p className="text-[#EB1453] text-sm mt-2 flex items-center gap-1">
-                  <AlertTriangle className="w-4 h-4" /> {flightError}
-                </p>
-              )}
-            </div>
-
-            <div className="relative overflow-hidden bg-slate-50 border border-slate-200 rounded-xl p-4 mb-8">
-              {/* Decorative left accent */}
-              <div className={`absolute left-0 top-0 bottom-0 w-1 ${input.aircraft !== 'OTHER' && !flightError ? 'bg-emerald-500' : 'bg-[#e3004a]'}`}></div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pl-2">
-                <div className="flex items-center gap-2">
-                  <div className="bg-white p-1 rounded border border-slate-200">
-                    <Plane className="w-3.5 h-3.5 text-[#1b0088]" />
-                  </div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Aeronave Detectada</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {flightDate && (
-                    <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-sm">
-                      REF: {flightDate}
-                    </span>
-                  )}
-                  {flightSource === 'realtime_grounding' && (
-                    <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] px-2 py-1 rounded-md font-bold flex items-center gap-1.5 shadow-sm">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
-                      REAL-TIME
-                    </span>
-                  )}
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-2">
-                <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col justify-between">
-                  <div className="flex items-start justify-between mb-1">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo</p>
-                    {input.aircraft !== 'OTHER' && !flightError && (
-                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded uppercase tracking-wider">Homologada</span>
-                    )}
-                    {input.aircraft === 'OTHER' && !flightError && (
-                      <span className="text-[9px] font-bold text-[#e3004a] bg-[#e3004a]/5 border border-[#e3004a]/20 px-1.5 py-0.5 rounded uppercase tracking-wider">Não Homologada</span>
-                    )}
-                  </div>
-                  <span className={`text-2xl font-mono font-bold tracking-tight ${input.aircraft === 'OTHER' ? 'text-slate-400' : 'text-[#1b0088]'}`}>
-                    {input.aircraft === 'OTHER' && flightError ? 'N/A' : input.aircraft}
-                  </span>
-                </div>
+        <div className="lg:col-span-7 flex flex-col gap-4 content-start">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Left Column: Flight Parameters */}
+              <div className="flex flex-col h-full">
+                <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
+                  <Plane className="w-4 h-4 text-[#1b0088]" />
+                  Parâmetros do Voo
+                </h2>
                 
-                <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Matrícula</p>
-                  <input
-                    type="text"
-                    value={input.registration}
-                    onChange={(e) => setInput({ ...input, registration: e.target.value.toUpperCase() })}
-                    className={`text-2xl font-mono font-bold tracking-tight w-full bg-transparent outline-none focus:ring-0 p-0 border-none ${input.registration === 'N/A' || !input.registration ? 'text-slate-400' : 'text-[#1b0088]'}`}
-                    placeholder="PR-MYX"
-                    maxLength={6}
-                  />
+                <div className="mb-6 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Código do Voo</label>
+                      <input
+                        type="text"
+                        value={input.flightCode}
+                        onChange={(e) => setInput({ ...input, flightCode: e.target.value.toUpperCase() })}
+                        onKeyDown={(e) => e.key === 'Enter' && handleFetchFlight()}
+                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
+                        placeholder="Ex: LA3465"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Data do Voo</label>
+                      <input
+                        type="date"
+                        value={selectedSearchDate}
+                        onChange={(e) => setSelectedSearchDate(e.target.value)}
+                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
+                      />
+                    </div>
+                  </div>
+                  
+                  <button 
+                    onClick={handleFetchFlight}
+                    disabled={isLoadingFlight || !input.flightCode}
+                    className="w-full bg-[#e3004a] hover:bg-[#e3004a]/90 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isLoadingFlight ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                    <span>Buscar Dados em Tempo Real</span>
+                  </button>
+                  
+                  {flightError && (
+                    <p className="text-[#EB1453] text-sm mt-2 flex items-center gap-1">
+                      <AlertTriangle className="w-4 h-4" /> {flightError}
+                    </p>
+                  )}
+                </div>
+
+                <div className="relative overflow-hidden bg-slate-50 border border-slate-200 rounded-xl p-4 mt-auto">
+                  {/* Decorative left accent */}
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${input.aircraft !== 'OTHER' && !flightError ? 'bg-emerald-500' : 'bg-[#e3004a]'}`}></div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pl-2">
+                    <div className="flex items-center gap-2">
+                      <div className="bg-white p-1 rounded border border-slate-200">
+                        <Plane className="w-3.5 h-3.5 text-[#1b0088]" />
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Aeronave Detectada</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {flightDate && (
+                        <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-sm">
+                          REF: {flightDate}
+                        </span>
+                      )}
+                      {flightSource === 'realtime_grounding' && (
+                        <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] px-2 py-1 rounded-md font-bold flex items-center gap-1.5 shadow-sm">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          REAL-TIME
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-2">
+                    <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-1">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo</p>
+                        {input.aircraft !== 'OTHER' && !flightError && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded uppercase tracking-wider">Homologada</span>
+                        )}
+                        {input.aircraft === 'OTHER' && !flightError && (
+                          <span className="text-[9px] font-bold text-[#e3004a] bg-[#e3004a]/5 border border-[#e3004a]/20 px-1.5 py-0.5 rounded uppercase tracking-wider">Não Homologada</span>
+                        )}
+                      </div>
+                      <span className={`text-2xl font-mono font-bold tracking-tight ${input.aircraft === 'OTHER' ? 'text-slate-400' : 'text-[#1b0088]'}`}>
+                        {input.aircraft === 'OTHER' && flightError ? 'N/A' : input.aircraft}
+                      </span>
+                    </div>
+                    
+                    <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col justify-between">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Matrícula</p>
+                      <input
+                        type="text"
+                        value={input.registration}
+                        onChange={(e) => setInput({ ...input, registration: e.target.value.toUpperCase() })}
+                        className={`text-2xl font-mono font-bold tracking-tight w-full bg-transparent outline-none focus:ring-0 p-0 border-none ${input.registration === 'N/A' || !input.registration ? 'text-slate-400' : 'text-[#1b0088]'}`}
+                        placeholder="PR-MYX"
+                        maxLength={6}
+                      />
+                    </div>
+                  </div>
+
+                  {input.aiReasoning && (
+                    <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] text-indigo-800 flex gap-2">
+                      <Info className="w-3.5 h-3.5 text-[#1b0088] shrink-0 mt-0.5" />
+                      <p><strong>Auditoria de Dados (Cross-Check):</strong> {input.aiReasoning}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {input.aiReasoning && (
-                <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] text-indigo-800 flex gap-2">
-                  <Info className="w-3.5 h-3.5 text-[#1b0088] shrink-0 mt-0.5" />
-                  <p><strong>Auditoria de Dados (Cross-Check):</strong> {input.aiReasoning}</p>
-                </div>
-              )}
-            </div>
-          </div>
+              {/* Right Column: Route and Product */}
+              <div className="flex flex-col h-full lg:border-l lg:border-slate-200 lg:pl-8">
+                <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
+                  <MapPin className="w-4 h-4 text-[#1b0088]" />
+                  Rota e Produto
+                </h2>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 col-span-1">
-            <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
-              <MapPin className="w-4 h-4 text-[#1b0088]" />
-              Rota e Produto
-            </h2>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Origem</label>
+                      <input
+                        type="text"
+                        value={input.origin}
+                        onChange={(e) => setInput({ ...input, origin: e.target.value.toUpperCase() })}
+                        maxLength={3}
+                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
+                        placeholder="Ex: GRU"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Destino</label>
+                      <input
+                        type="text"
+                        value={input.destination}
+                        onChange={(e) => setInput({ ...input, destination: e.target.value.toUpperCase() })}
+                        maxLength={3}
+                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
+                        placeholder="Ex: MIA"
+                      />
+                    </div>
+                  </div>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Origem</label>
-                  <input
-                    type="text"
-                    value={input.origin}
-                    onChange={(e) => setInput({ ...input, origin: e.target.value.toUpperCase() })}
-                    maxLength={3}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
-                    placeholder="Ex: GRU"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Destino</label>
-                  <input
-                    type="text"
-                    value={input.destination}
-                    onChange={(e) => setInput({ ...input, destination: e.target.value.toUpperCase() })}
-                    maxLength={3}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
-                    placeholder="Ex: MIA"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                    <Package className="w-3.5 h-3.5" /> Produto LATAM Cargo
-                  </label>
-                  <select
-                    value={input.productType}
-                    onChange={(e) => setInput({ ...input, productType: e.target.value as any })}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all bg-white"
-                  >
-                    <option value="GENERAL">General Cargo</option>
-                    <option value="VELOZ">Veloz (Must Ride)</option>
-                    <option value="PHARMA">Pharma (Vacinas/Remédios)</option>
-                    <option value="ALIVE">Alive (Animais Vivos)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                    <Package className="w-3.5 h-3.5" /> Tipo de Carga
-                  </label>
-                  <select
-                    value={input.cargoType === 'LOOSE' ? 'LOOSE' : `ULD_${input.uldType}`}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === 'LOOSE') {
-                        setInput({ ...input, cargoType: 'LOOSE', uldType: 'NONE' });
-                      } else {
-                        const uldType = val.split('_')[1] as any;
-                        setInput({ ...input, cargoType: 'ULD', uldType: uldType });
-                      }
-                    }}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all bg-white"
-                  >
-                    <option value="LOOSE">Carga Solta (Loose)</option>
-                    <option value="ULD_AKH">Contêiner (ULD) - AKH (A320 Family)</option>
-                    <option value="ULD_AKE">Contêiner (ULD) - AKE (Widebody)</option>
-                    <option value="ULD_PKC">Contêiner (ULD) - PKC (Pallet)</option>
-                  </select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                        <Package className="w-3.5 h-3.5" /> Tipo de Carga
+                      </label>
+                      <select
+                        value={input.cargoType === 'LOOSE' ? 'LOOSE' : `ULD_${input.uldType}`}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'LOOSE') {
+                            setInput({ ...input, cargoType: 'LOOSE', uldType: 'NONE' });
+                          } else {
+                            const uldType = val.split('_')[1] as any;
+                            setInput({ ...input, cargoType: 'ULD', uldType: uldType });
+                          }
+                        }}
+                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all bg-white"
+                      >
+                        <option value="LOOSE">Carga Solta (Loose)</option>
+                        <option value="ULD_AKH">Contêiner (ULD) - AKH (A320 Family)</option>
+                        <option value="ULD_AKE">Contêiner (ULD) - AKE (Widebody)</option>
+                        <option value="ULD_PKC">Contêiner (ULD) - PKC (Pallet)</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -596,10 +593,13 @@ export default function Home() {
 
           <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 col-span-1 lg:col-span-2">
             <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
-              <h2 className="text-base font-semibold flex items-center gap-2 text-slate-800">
-                <ShieldAlert className="w-4 h-4 text-[#1b0088]" />
-                Especificações da Carga
-              </h2>
+              <div className="flex items-center gap-4">
+                <h2 className="text-base font-semibold flex items-center gap-2 text-slate-800">
+                  <ShieldAlert className="w-4 h-4 text-[#1b0088]" />
+                  Especificações da Carga
+                </h2>
+
+              </div>
               <button 
                 onClick={() => {
                   if (confirm('Deseja realmente limpar todos os dados preenchidos?')) {
@@ -613,6 +613,74 @@ export default function Home() {
               </button>
             </div>
             
+              <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                <div className="flex items-end gap-4 mb-4">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Quantidade de Pallets</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={palletCount}
+                      onChange={(e) => {
+                        const count = Math.max(1, Math.min(20, Number(e.target.value)));
+                        setPalletCount(count);
+                        
+                        // Adjust pranchas array to match pallet count
+                        const currentPranchas = [...input.pranchas];
+                        if (count > currentPranchas.length) {
+                          // Add new pallets
+                          for (let i = currentPranchas.length; i < count; i++) {
+                            currentPranchas.push({
+                              id: Math.random().toString(36).substr(2, 9),
+                              weight: 100,
+                              volumes: 1, // Pallet is treated as 1 volume unit for dimensions
+                              length: 120,
+                              width: 100,
+                              height: 100,
+                              hasOversize: false,
+                              oversizeVolumes: 0,
+                              oversizeWeight: 0
+                            });
+                          }
+                        } else if (count < currentPranchas.length) {
+                          // Remove excess
+                          currentPranchas.splice(count);
+                        }
+                        setInput({...input, pranchas: currentPranchas});
+                      }}
+                      className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-white"
+                    />
+                  </div>
+                  <div className="flex-1 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Resumo da Carga (Pallets)</p>
+                    <div className="flex justify-between items-end gap-4">
+                      <div>
+                        <span className="text-xs text-slate-500 block">Peso Real Total</span>
+                        <span className="text-lg font-bold text-slate-800 font-mono">
+                          {input.pranchas.reduce((acc, p) => acc + p.weight, 0).toLocaleString('pt-BR')} kg
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-slate-500 block">Volumes Totais</span>
+                        <span className="text-lg font-bold font-mono text-slate-800">
+                          {input.pranchas.reduce((acc, p) => acc + p.volumes, 0)}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs text-slate-500 block">Peso Cubado Total</span>
+                        <span className="text-lg font-bold text-indigo-600 font-mono">
+                          {Math.round(input.pranchas.reduce((acc, p) => {
+                            const volM3 = (p.length * p.width * p.height) / 1000000;
+                            return acc + (volM3 * 167);
+                          }, 0)).toLocaleString('pt-BR')} kg
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             <div className="space-y-4">
               {input.pranchas.map((prancha, index) => (
                 <div key={prancha.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 relative">
@@ -620,7 +688,9 @@ export default function Home() {
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
                         <RectangleHorizontal className="w-4 h-4 text-[#1b0088]" />
-                        <h3 className="text-sm font-bold text-slate-700">Prancha {index + 1}</h3>
+                        <h3 className="text-sm font-bold text-slate-700">
+                          Pallet {index + 1}
+                        </h3>
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-md cursor-pointer hover:bg-indigo-200 transition-colors text-xs font-semibold">
@@ -637,25 +707,7 @@ export default function Home() {
                         </label>
                       </div>
                     </div>
-                    {input.pranchas.length > 1 && (
-                      <button 
-                        onClick={() => {
-                          const newPranchas = [...input.pranchas];
-                          newPranchas.splice(index, 1);
-                          setInput({...input, pranchas: newPranchas});
-                          
-                          // Also remove associated images
-                          setPranchaImages(prev => {
-                            const updated = { ...prev };
-                            delete updated[prancha.id];
-                            return updated;
-                          });
-                        }}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium"
-                      >
-                        Remover
-                      </button>
-                    )}
+
                   </div>
 
                   {pranchaImages[prancha.id] && pranchaImages[prancha.id].length > 0 && (
@@ -720,7 +772,9 @@ export default function Home() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Qtd. Volumes</label>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                        Volumes (Unidades no Pallet)
+                      </label>
                       <input
                         type="number"
                         value={prancha.volumes}
@@ -798,12 +852,20 @@ export default function Home() {
                       <option value="PER">Perecível (PER)</option>
                       <option value="HUM">Restos Mortais (HUM)</option>
                       <option value="VAL">Carga Valiosa (VAL)</option>
+                      <option value="ELI">Bateria de ion lítio (ELI)</option>
                     </select>
                     
-                    {['ICE', 'DGR', 'AVI', 'HUM'].includes(prancha.specialCargoType || '') && (
+                    {['ICE', 'DGR', 'AVI', 'HUM', 'ELI'].includes(prancha.specialCargoType || '') && (
                       <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 flex items-start gap-1.5">
                         <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                         <p><strong>Atenção:</strong> Esta carga requer emissão obrigatória de <strong>NOTOC</strong> (Notification to Captain) antes do voo.</p>
+                      </div>
+                    )}
+
+                    {prancha.specialCargoType === 'ELI' && (
+                      <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 flex items-start gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <p><strong>Atenção:</strong> Verificar etiqueta de Bateria de Lítio (Lithium Battery Mark) e limites por volume.</p>
                       </div>
                     )}
                   </div>
@@ -826,6 +888,63 @@ export default function Home() {
                         placeholder="Ex: 50"
                         className="w-full p-2.5 text-sm rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono bg-white"
                       />
+                    </motion.div>
+                  )}
+
+                  {prancha.specialCargoType === 'DGR' && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg"
+                    >
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-red-800 uppercase tracking-wider mb-1.5">Classe DGR</label>
+                          <select
+                            value={prancha.dgrClass || ''}
+                            onChange={(e) => {
+                              const newPranchas = [...input.pranchas];
+                              newPranchas[index].dgrClass = e.target.value;
+                              setInput({...input, pranchas: newPranchas});
+                            }}
+                            className="w-full p-2.5 text-sm rounded-lg border border-red-200 focus:ring-2 focus:ring-red-500 outline-none transition-all bg-white"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="1">Class 1 - Explosives</option>
+                            <option value="2.1">Class 2.1 - Flammable Gas</option>
+                            <option value="2.2">Class 2.2 - Non-flammable Gas</option>
+                            <option value="2.3">Class 2.3 - Toxic Gas</option>
+                            <option value="3">Class 3 - Flammable Liquids</option>
+                            <option value="4.1">Class 4.1 - Flammable Solids</option>
+                            <option value="4.2">Class 4.2 - Spontaneously Combustible</option>
+                            <option value="4.3">Class 4.3 - Dangerous When Wet</option>
+                            <option value="5.1">Class 5.1 - Oxidizer</option>
+                            <option value="5.2">Class 5.2 - Organic Peroxide</option>
+                            <option value="6.1">Class 6.1 - Toxic</option>
+                            <option value="6.2">Class 6.2 - Infectious Substance</option>
+                            <option value="7">Class 7 - Radioactive</option>
+                            <option value="8">Class 8 - Corrosive</option>
+                            <option value="9">Class 9 - Miscellaneous</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-red-800 uppercase tracking-wider mb-1.5">Packing Group</label>
+                          <select
+                            value={prancha.dgrPackingGroup || 'N/A'}
+                            onChange={(e) => {
+                              const newPranchas = [...input.pranchas];
+                              newPranchas[index].dgrPackingGroup = e.target.value as any;
+                              setInput({...input, pranchas: newPranchas});
+                            }}
+                            className="w-full p-2.5 text-sm rounded-lg border border-red-200 focus:ring-2 focus:ring-red-500 outline-none transition-all bg-white"
+                          >
+                            <option value="N/A">N/A</option>
+                            <option value="I">I (High Danger)</option>
+                            <option value="II">II (Medium Danger)</option>
+                            <option value="III">III (Low Danger)</option>
+                          </select>
+                        </div>
+                      </div>
                     </motion.div>
                   )}
 
@@ -933,33 +1052,7 @@ export default function Home() {
                 </div>
               ))}
               
-              <button
-                onClick={() => {
-                  setInput({
-                    ...input,
-                    pranchas: [
-                      ...input.pranchas,
-                      {
-                        id: Math.random().toString(36).substr(2, 9),
-                        weight: 0,
-                        volumes: 1,
-                        length: 120,
-                        width: 120,
-                        height: 100,
-                        hasOversize: false,
-                        oversizeVolumes: 0,
-                        oversizeWeight: 0,
-                        oversizeLength: 0,
-                        oversizeWidth: 0,
-                        oversizeHeight: 0
-                      }
-                    ]
-                  });
-                }}
-                className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-medium hover:border-[#1b0088] hover:text-[#1b0088] transition-colors flex items-center justify-center gap-2"
-              >
-                + Adicionar Prancha
-              </button>
+
             </div>
           </div>
         </div>
@@ -1014,6 +1107,18 @@ export default function Home() {
                 aircraft={manifest.flight_info.aircraft} 
                 allocation={manifest.allocation} 
               />
+
+              {manifest.cubage_alert && (
+                <div className="bg-amber-500/10 rounded-lg p-4 border border-amber-500/30 mb-6 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-1">Alerta de Cubagem</h4>
+                    <p className="text-xs font-mono text-amber-200/80 leading-relaxed">
+                      O volume total da carga excede a capacidade padrão do porão. Há um alto risco de corte de carga por falta de espaço físico, mesmo que o peso esteja dentro dos limites.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="bg-[#1e293b]/30 rounded-lg p-5 border border-slate-700/50 mb-6">
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4 border-b border-slate-700/50 pb-2">Veredito Operacional</h3>
@@ -1080,6 +1185,68 @@ export default function Home() {
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {manifest.calculationBreakdown && (
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 mb-6">
+                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                      <RectangleHorizontal className="w-3.5 h-3.5" />
+                      Detalhamento do Cálculo de Posições
+                   </h4>
+                   <div className="grid grid-cols-3 gap-3">
+                      <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-slate-800/50 border-slate-700/50'}`}>
+                         <div>
+                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-indigo-400' : 'text-slate-500'}`}>Peso Real</span>
+                           <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-indigo-300' : 'text-slate-300'}`}>
+                             {manifest.calculationBreakdown.totalRealWeight.toLocaleString('pt-BR')} kg
+                           </span>
+                         </div>
+                         <div className="mt-2 pt-2 border-t border-white/5">
+                           <span className={`block text-[10px] font-mono ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-indigo-400' : 'text-slate-500'}`}>
+                             Requer <strong className={manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-indigo-300' : 'text-slate-400'}>{manifest.calculationBreakdown.totalRealPos}</strong> pos
+                           </span>
+                         </div>
+                      </div>
+                      
+                      <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-slate-800/50 border-slate-700/50'}`}>
+                         <div>
+                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-indigo-400' : 'text-slate-500'}`}>Peso Cubado</span>
+                           <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-indigo-300' : 'text-slate-300'}`}>
+                             {Math.round(manifest.calculationBreakdown.totalCubedWeight).toLocaleString('pt-BR')} kg
+                           </span>
+                         </div>
+                         <div className="mt-2 pt-2 border-t border-white/5">
+                           <span className={`block text-[10px] font-mono ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-indigo-400' : 'text-slate-500'}`}>
+                             Requer <strong className={manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-indigo-300' : 'text-slate-400'}>{manifest.calculationBreakdown.totalCubedPos}</strong> pos
+                           </span>
+                         </div>
+                      </div>
+                      
+                      <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-slate-800/50 border-slate-700/50'}`}>
+                         <div>
+                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-indigo-400' : 'text-slate-500'}`}>Oversize</span>
+                           <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-indigo-300' : 'text-slate-300'}`}>
+                             Restrição Física
+                           </span>
+                         </div>
+                         <div className="mt-2 pt-2 border-t border-white/5">
+                           <span className={`block text-[10px] font-mono ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-indigo-400' : 'text-slate-500'}`}>
+                             Requer <strong className={manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-indigo-300' : 'text-slate-400'}>{manifest.calculationBreakdown.oversizePos}</strong> pos
+                           </span>
+                         </div>
+                      </div>
+                   </div>
+                   
+                   <div className="mt-3 pt-3 border-t border-slate-700/50 flex justify-between items-center">
+                      <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Fator Limitante:</span>
+                      <span className="text-xs font-bold text-indigo-400 font-mono uppercase">
+                        {manifest.calculationBreakdown.limitingFactor === 'WEIGHT' && 'PESO REAL'}
+                        {manifest.calculationBreakdown.limitingFactor === 'CUBAGE' && 'PESO CUBADO (VOLUME)'}
+                        {manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' && 'RESTRIÇÃO OVERSIZE'}
+                        {manifest.calculationBreakdown.limitingFactor === 'MINIMUM' && 'MÍNIMO OPERACIONAL (1 POS)'}
+                      </span>
+                   </div>
                 </div>
               )}
 

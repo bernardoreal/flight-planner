@@ -13,15 +13,16 @@ export interface Prancha {
   oversizeLength?: number;
   oversizeWidth?: number;
   oversizeHeight?: number;
-  specialCargoType?: 'NONE' | 'ICE' | 'AVI' | 'DGR' | 'WET' | 'PER' | 'HUM' | 'VAL';
+  specialCargoType?: 'NONE' | 'ICE' | 'AVI' | 'DGR' | 'WET' | 'PER' | 'HUM' | 'VAL' | 'ELI';
   iceWeight?: number;
+  dgrClass?: string;
+  dgrPackingGroup?: 'I' | 'II' | 'III' | 'N/A';
 }
 
 export interface CargoInput {
   flightCode: string;
   origin: string;
   destination: string;
-  productType: 'GENERAL' | 'VELOZ' | 'PHARMA' | 'ALIVE';
   aircraft: AircraftType;
   registration: string;
   flightDate?: string;
@@ -36,6 +37,16 @@ export interface CargoInput {
   cargoType: 'LOOSE' | 'ULD';
   uldType: 'AKH' | 'AKE' | 'PKC' | 'NONE';
   dgrTypes: string[]; // 'ICE', 'AVI', 'LITHIUM_BULK', 'LITHIUM_EQUIP', 'FLAM', 'EXPLOSIVE', 'GAS', 'TOXIC', 'RADIOACTIVE'
+}
+
+export interface CalculationBreakdown {
+  totalRealWeight: number;
+  totalRealPos: number;
+  totalCubedWeight: number;
+  totalCubedPos: number;
+  oversizePos: number;
+  finalPos: number;
+  limitingFactor: 'WEIGHT' | 'CUBAGE' | 'OVERSIZE' | 'MINIMUM';
 }
 
 export interface ManifestResult {
@@ -69,6 +80,7 @@ export interface ManifestResult {
   };
   max_cargo_weight: number;
   dov_alert: string;
+  calculationBreakdown?: CalculationBreakdown;
 }
 
 const FLEET_CONFIG = {
@@ -116,6 +128,9 @@ export function generateManifest(input: CargoInput): ManifestResult {
   // 3. Physical Constraints, Cubage & Positions
   let cubage_alert = false;
   let posicoes = 0;
+  let totalCubedPos = 0;
+  let totalWeightPos = 0;
+  let calculationBreakdown: CalculationBreakdown | undefined;
   let status: 'OK' | 'ALERTA' | 'REJEITADO' = 'OK';
   const warnings: string[] = [];
   const dgr_alerts: string[] = [];
@@ -154,47 +169,37 @@ export function generateManifest(input: CargoInput): ManifestResult {
     }
   } else {
     // LOOSE CARGO:
+    let totalLooseWeight = 0;
+    let totalLooseCubedWeight = 0;
+    let maxOversizePos = 0;
+
     input.pranchas.forEach((p, index) => {
       const pranchaNum = index + 1;
-      let pranchaPos = 0;
       
-      // Regra LATAM & Dnata: 900kg real ou 600kg cubado por posição
-      const weightPos = Math.ceil(p.weight / 900);
-      
+      totalLooseWeight += p.weight;
+
       // Cálculo do peso cubado (Fator de conversão padrão IATA: 167 kg/m³)
       const volumeM3 = (p.length * p.width * p.height) / 1000000;
       const cubedWeight = volumeM3 * 167;
-      const cubedPos = Math.ceil(cubedWeight / 600);
-      
-      // A alocação final é o maior valor entre a necessidade por peso real e peso cubado
-      pranchaPos = Math.max(weightPos, cubedPos, 1); // Garante no mínimo 1 posição
+      totalLooseCubedWeight += cubedWeight;
       
       // Se for um único volume indivisível e for muito comprido, ele vai dar overlap físico inevitável
       if (p.volumes === 1 && p.length > 150) {
         const lengthPos = Math.ceil(p.length / 150);
-        if (lengthPos > pranchaPos) {
-          pranchaPos = lengthPos;
-          warnings.push(`INFO (Prancha ${pranchaNum}): Volume único longo detectado (${p.length}cm). Ocupará ${lengthPos} posições por Overlap físico.`);
+        if (lengthPos > maxOversizePos) {
+           maxOversizePos = lengthPos; // Mantém o maior overlap físico necessário
+           warnings.push(`INFO (Prancha ${pranchaNum}): Volume único longo detectado (${p.length}cm). Requer espaço físico contínuo de ${lengthPos} posições.`);
         }
-      } else if (p.volumes > 1 && p.length > 150) {
-        warnings.push(`INFO (Prancha ${pranchaNum}): Dimensões da prancha (${p.length}x${p.width}x${p.height}cm) indicam carga espalhada. Como são ${p.volumes} volumes soltos, assumimos que podem ser rearranjados no porão para otimizar espaço, ocupando ${pranchaPos} posição(ões) com base no peso real (${p.weight}kg) e cubado (${Math.round(cubedWeight)}kg).`);
       }
-      
+
       // Tratamento de Overlap Explícito (Oversize)
       if (p.hasOversize && p.oversizeVolumes > 0) {
-        // Calcula posições baseadas no comprimento do oversize (padrão 2 pos se > 150cm)
         const oversizeLength = p.oversizeLength || 200;
         const positionsPerOversize = Math.ceil(oversizeLength / 150);
         
-        // Regra de consolidação (Dead Space): 
-        // Como os volumes oversize nem sempre são grandes (largos), eles não multiplicam 
-        // as posições. O limite de 900kg real/posição e 600kg cubado/posição já cuida da capacidade.
-        // Apenas garantimos que o comprimento físico mínimo seja respeitado.
-        if (positionsPerOversize > pranchaPos) {
-          pranchaPos = positionsPerOversize;
-          warnings.push(`INFO (Prancha ${pranchaNum}): Overlap explícito detectado. Item oversize bloqueando ${positionsPerOversize} posições físicas. A carga solta restante será consolidada no "dead space" destas posições.`);
-        } else {
-          warnings.push(`INFO (Prancha ${pranchaNum}): Overlap explícito detectado (${p.oversizeVolumes} vols), mas a cubagem/peso totais da prancha já exigiam ${pranchaPos} posições, absorvendo o overlap no espaço existente.`);
+        if (positionsPerOversize > maxOversizePos) {
+          maxOversizePos = positionsPerOversize;
+          warnings.push(`INFO (Prancha ${pranchaNum}): Overlap explícito detectado. Item oversize bloqueando ${positionsPerOversize} posições físicas.`);
         }
       }
       
@@ -230,9 +235,51 @@ export function generateManifest(input: CargoInput): ManifestResult {
         warnings.push(`CRÍTICO (Prancha ${pranchaNum}): Limite de Running Load excedido (${runningLoad.toFixed(1)} kg/inch). Risco estrutural ao piso do porão.`);
         status = 'REJEITADO';
       }
-      
-      posicoes += pranchaPos;
     });
+
+    // Cálculo final de posições baseado nos TOTAIS (Agregação)
+    const totalWeightPos = Math.ceil(totalLooseWeight / 900);
+    const totalCubedPosCalc = Math.ceil(totalLooseCubedWeight / 600);
+    
+    // A quantidade de posições é definida pelo maior limitante: Peso Real, Peso Cubado ou Restrição Física (Oversize)
+    // Garante no mínimo 1 posição se houver carga
+    posicoes = Math.max(totalWeightPos, totalCubedPosCalc, maxOversizePos, input.pranchas.length > 0 ? 1 : 0);
+    
+    totalCubedPos = totalCubedPosCalc; // Para uso no alerta de cubagem global
+
+    let limitingFactor: 'WEIGHT' | 'CUBAGE' | 'OVERSIZE' | 'MINIMUM' = 'MINIMUM';
+    if (posicoes === totalWeightPos && totalWeightPos > totalCubedPosCalc && totalWeightPos > maxOversizePos) {
+        limitingFactor = 'WEIGHT';
+    } else if (posicoes === totalCubedPosCalc && totalCubedPosCalc > totalWeightPos && totalCubedPosCalc > maxOversizePos) {
+        limitingFactor = 'CUBAGE';
+    } else if (posicoes === maxOversizePos && maxOversizePos > totalWeightPos && maxOversizePos > totalCubedPosCalc) {
+        limitingFactor = 'OVERSIZE';
+    } else if (posicoes === 1 && input.pranchas.length > 0) {
+        limitingFactor = 'MINIMUM';
+    } else {
+        // Tie-breaker or default
+        if (posicoes === totalWeightPos) limitingFactor = 'WEIGHT';
+        else if (posicoes === totalCubedPosCalc) limitingFactor = 'CUBAGE';
+        else if (posicoes === maxOversizePos) limitingFactor = 'OVERSIZE';
+    }
+
+    calculationBreakdown = {
+        totalRealWeight: totalLooseWeight,
+        totalRealPos: totalWeightPos,
+        totalCubedWeight: totalLooseCubedWeight,
+        totalCubedPos: totalCubedPosCalc,
+        oversizePos: maxOversizePos,
+        finalPos: posicoes,
+        limitingFactor
+    };
+
+    if (limitingFactor === 'WEIGHT') {
+        warnings.push(`INFO: Alocação definida pelo Peso Real.`);
+    } else if (limitingFactor === 'CUBAGE') {
+        warnings.push(`INFO: Alocação definida pela Cubagem.`);
+    } else if (limitingFactor === 'OVERSIZE') {
+        warnings.push(`INFO: Alocação definida por restrição física de item Oversize.`);
+    }
   }
   
   // ICE Validation per prancha
@@ -263,21 +310,82 @@ export function generateManifest(input: CargoInput): ManifestResult {
   const hasIce = input.dgrTypes?.includes('ICE') || input.isICE;
   const hasAvi = input.dgrTypes?.includes('AVI') || input.isAVI;
   const hasHum = input.isHUM;
+  const hasEli = input.pranchas.some(p => p.specialCargoType === 'ELI');
 
-  if (input.productType === 'PHARMA') {
-    warnings.push('INFO: Produto PHARMA detectado. Prioridade de embarque ativada. Monitoramento de temperatura obrigatório.');
-    if (!hasIce) {
-      warnings.push('AVISO: Produto PHARMA sem declaração de ICE (Gelo Seco). Verifique se a embalagem é passiva ou ativa.');
-      if (status !== 'REJEITADO') status = 'ALERTA';
+  // Collect all DGR Classes present
+  const dgrClassesPresent = new Set<string>();
+  input.pranchas.forEach(p => {
+    if (p.specialCargoType === 'DGR' && p.dgrClass) {
+      dgrClassesPresent.add(p.dgrClass);
     }
+  });
+
+  // IATA Table 9.3.A Segregation Logic
+  if (dgrClassesPresent.has('1') || dgrClassesPresent.has('1.3') || dgrClassesPresent.has('1.4')) {
+     dgr_alerts.push('CRÍTICO (DGR): Explosivos (Class 1) detectados. Segregação rigorosa exigida. Verificar compatibilidade com PAX.');
+     if (dgrClassesPresent.has('1.1') || dgrClassesPresent.has('1.2') || dgrClassesPresent.has('1.5') || dgrClassesPresent.has('1.6')) {
+        warnings.push('CRÍTICO: Explosivos 1.1, 1.2, 1.5, 1.6 PROIBIDOS em aeronaves de passageiros.');
+        status = 'REJEITADO';
+     }
   }
 
-  if (input.productType === 'ALIVE' && !hasAvi) {
-    warnings.push('CRÍTICO: Produto ALIVE selecionado, mas flag AVI não está marcada. Correção automática aplicada.');
+  // Class 3 vs 5.1
+  if (dgrClassesPresent.has('3') && dgrClassesPresent.has('5.1')) {
+      dgr_alerts.push('CRÍTICO (DGR): Inflamáveis (Class 3) e Oxidantes (Class 5.1) requerem segregação "Separated from".');
+      if (status !== 'REJEITADO') status = 'ALERTA';
   }
 
-  if (input.productType === 'VELOZ') {
-    warnings.push('INFO: Produto VELOZ. Garantia de embarque (Must Ride).');
+  // Class 3 vs 5.2
+  if (dgrClassesPresent.has('3') && dgrClassesPresent.has('5.2')) {
+      dgr_alerts.push('CRÍTICO (DGR): Inflamáveis (Class 3) e Peróxidos Orgânicos (Class 5.2) requerem segregação "Separated from".');
+      if (status !== 'REJEITADO') status = 'ALERTA';
+  }
+
+  // Class 2.1 vs 5.1
+  if (dgrClassesPresent.has('2.1') && dgrClassesPresent.has('5.1')) {
+      dgr_alerts.push('CRÍTICO (DGR): Gás Inflamável (Class 2.1) e Oxidantes (Class 5.1) requerem segregação.');
+      if (status !== 'REJEITADO') status = 'ALERTA';
+  }
+
+  // Class 4.1 vs 5.1
+  if (dgrClassesPresent.has('4.1') && dgrClassesPresent.has('5.1')) {
+      dgr_alerts.push('CRÍTICO (DGR): Sólidos Inflamáveis (Class 4.1) e Oxidantes (Class 5.1) requerem segregação.');
+      if (status !== 'REJEITADO') status = 'ALERTA';
+  }
+
+  // Class 4.2 vs 5.1
+  if (dgrClassesPresent.has('4.2') && dgrClassesPresent.has('5.1')) {
+      dgr_alerts.push('CRÍTICO (DGR): Combustão Espontânea (Class 4.2) e Oxidantes (Class 5.1) requerem segregação.');
+      if (status !== 'REJEITADO') status = 'ALERTA';
+  }
+
+  // Class 8 vs 4.2
+  if (dgrClassesPresent.has('8') && dgrClassesPresent.has('4.2')) {
+      dgr_alerts.push('CRÍTICO (DGR): Corrosivos (Class 8) e Combustão Espontânea (Class 4.2) requerem segregação.');
+      if (status !== 'REJEITADO') status = 'ALERTA';
+  }
+
+  // Class 8 vs 5.2
+  if (dgrClassesPresent.has('8') && dgrClassesPresent.has('5.2')) {
+      dgr_alerts.push('CRÍTICO (DGR): Corrosivos (Class 8) e Peróxidos Orgânicos (Class 5.2) requerem segregação "Separated from" (risco de reação violenta).');
+      if (status !== 'REJEITADO') status = 'ALERTA';
+  }
+
+  // Class 6.1 (Toxic) vs AVI/Food
+  if (dgrClassesPresent.has('6.1') && hasAvi) {
+      dgr_alerts.push('CRÍTICO (DGR): Tóxicos (Class 6.1) devem ser segregados de Animais Vivos (AVI) e Alimentos/Pharma.');
+      if (status !== 'REJEITADO') status = 'ALERTA';
+  }
+
+  // Class 7 (Radioactive) vs AVI
+  if (dgrClassesPresent.has('7') && hasAvi) {
+      dgr_alerts.push('INFO (DGR): Radioativos (Class 7) e Animais Vivos (AVI) requerem distanciamento mínimo baseado no Índice de Transporte (TI).');
+  }
+
+  // Class 4.3 vs Water/WET
+  if (dgrClassesPresent.has('4.3') && (input.isWET || hasIce)) {
+      dgr_alerts.push('CRÍTICO (DGR): Class 4.3 (Perigoso quando molhado) incompatível com WET Cargo ou Gelo Seco (Condensação).');
+      status = 'REJEITADO';
   }
 
   // DGR Segregation Matrix (ICAO Table 9.3.A)
@@ -301,7 +409,11 @@ export function generateManifest(input: CargoInput): ManifestResult {
     dgr_alerts.push('INFO (DGR): Baterias de Lítio UN3481/UN3091 (In Equipment) permitidas. Verificar limite de SoC (State of Charge < 30%).');
   }
 
-  if ((hasLithiumBulk || hasLithiumEquip) && hasFlammable) {
+  if (hasEli) {
+    dgr_alerts.push('INFO (DGR): Baterias de Lítio ELI (Exception) detectadas. Verificar limites de peso/quantidade por volume (PI 965/966/967 Section II).');
+  }
+
+  if ((hasLithiumBulk || hasLithiumEquip || hasEli) && hasFlammable) {
     dgr_alerts.push('CRÍTICO (DGR): Incompatibilidade detectada. Baterias de Lítio e Líquidos Inflamáveis devem ser segregados em compartimentos distintos.');
     status = 'REJEITADO';
   }
@@ -316,8 +428,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
     status = 'REJEITADO';
   }
   
-  if ((input.dgrTypes && input.dgrTypes.length > 0) || input.isDGR || hasIce || hasAvi || hasHum) {
-    warnings.push('AVISO: Presença de DGR/ICE/AVI/HUM. Requer emissão de NOTOC (Notification to Captain).');
+  if ((input.dgrTypes && input.dgrTypes.length > 0) || input.isDGR || hasIce || hasAvi || hasHum || hasEli) {
+    warnings.push('AVISO: Presença de DGR/ICE/AVI/HUM/ELI. Requer emissão de NOTOC (Notification to Captain).');
     if (status !== 'REJEITADO') status = 'ALERTA';
   }
   
@@ -328,6 +440,12 @@ export function generateManifest(input: CargoInput): ManifestResult {
   let bulk = 0;
   let cg_impact = 'Neutro';
   let fuel_penalty = 'N/A';
+  
+  if (input.cargoType === 'LOOSE' && totalCubedPos > config.cargoMax) {
+    cubage_alert = true;
+    warnings.push(`ALERTA DE CUBAGEM: O volume total da carga exige ${totalCubedPos} posições cubadas, excedendo a capacidade padrão de ${config.cargoMax} posições. Risco de corte de carga por falta de espaço físico.`);
+    if (status !== 'REJEITADO') status = 'ALERTA';
+  }
   
   if (input.cargoType === 'LOOSE' && posicoes > config.cargoMax) {
     warnings.push(`CRÍTICO: Capacidade máxima de posições de carga solta excedida (Allotment Padrão: ${config.cargoMax} pos). Necessário: ${posicoes} pos.`);
@@ -388,13 +506,14 @@ export function generateManifest(input: CargoInput): ManifestResult {
   const totalRequestedPos = posicoes + bulk;
   
   if (totalRequestedPos > 0) {
-    const totalAvailableForCargo = config.cargoMax + (config.hasBulk ? 1 : 0);
-    const usagePercent = totalRequestedPos / totalAvailableForCargo;
+    const usagePercent = totalRequestedPos / config.totalPos;
     
-    if (usagePercent >= 0.8) {
-      dov_alert = `ALERTA DOV: Alto risco de corte de carga. Solicitando ${totalRequestedPos} posições de porão. A aeronave requer posições e margem de peso para bagagens e combustível, o que impacta diretamente o balanceamento (CG). A aprovação final depende do Despachante Operacional de Voo (DOV).`;
-    } else {
-      dov_alert = `AVISO DOV: Possibilidade de corte. A aprovação final de ${totalRequestedPos} posições depende da equipe do DOV, considerando o peso/volume de bagagens e combustível para o balanceamento (CG).`;
+    if (usagePercent >= 0.5) {
+      if (usagePercent >= 0.8) {
+        dov_alert = `ALERTA DOV: Alto risco de corte de carga. Solicitando ${totalRequestedPos} de ${config.totalPos} posições totais (${Math.round(usagePercent * 100)}%). A aeronave requer posições e margem de peso para bagagens e combustível, o que impacta diretamente o balanceamento (CG). A aprovação final depende do Despachante Operacional de Voo (DOV).`;
+      } else {
+        dov_alert = `AVISO DOV: Possibilidade de corte. Solicitando ${totalRequestedPos} de ${config.totalPos} posições totais (${Math.round(usagePercent * 100)}%). A aprovação final depende da equipe do DOV, considerando o peso/volume de bagagens e combustível.`;
+      }
     }
   }
 
@@ -429,6 +548,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
     clsInfo: input.clsInfo,
     allocation: { fwd, aft, bulk },
     max_cargo_weight,
-    dov_alert
+    dov_alert,
+    calculationBreakdown
   };
 }
