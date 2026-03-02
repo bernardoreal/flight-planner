@@ -162,7 +162,12 @@ export default function Home() {
       }
       \`\`\``;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_PIXOR! });
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY_PIXOR;
+      if (!apiKey) {
+        throw new Error('A chave de API (NEXT_PUBLIC_GEMINI_API_KEY_PIXOR) não foi encontrada. Verifique as variáveis de ambiente no Cloudflare Pages e faça um novo Deploy.');
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       const model = ai.models.generateContent({
         model: AI_MODEL,
         contents: prompt,
@@ -280,7 +285,12 @@ export default function Home() {
       }
       \`\`\``;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY_PIXOR! });
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY_PIXOR;
+      if (!apiKey) {
+        throw new Error('A chave de API (NEXT_PUBLIC_GEMINI_API_KEY_PIXOR) não foi encontrada. Verifique as variáveis de ambiente no Cloudflare Pages e faça um novo Deploy.');
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       const parts = await Promise.all(images.map(async (img) => {
         const file = img.file;
