@@ -10,6 +10,9 @@ export interface Prancha {
   hasOversize: boolean;
   oversizeVolumes: number;
   oversizeWeight: number;
+  oversizeLength?: number;
+  oversizeWidth?: number;
+  oversizeHeight?: number;
   specialCargoType?: 'NONE' | 'ICE' | 'AVI' | 'DGR' | 'WET' | 'PER' | 'HUM' | 'VAL';
   iceWeight?: number;
 }
@@ -18,15 +21,17 @@ export interface CargoInput {
   flightCode: string;
   origin: string;
   destination: string;
-  productType: 'GENERAL' | 'EXPRESS' | 'PHARMA' | 'ALIVE';
+  productType: 'GENERAL' | 'VELOZ' | 'PHARMA' | 'ALIVE';
   aircraft: AircraftType;
   registration: string;
   flightDate?: string;
+  aiReasoning?: string;
   pranchas: Prancha[];
   isICE: boolean;
   isAVI: boolean;
   isDGR: boolean;
   isWET: boolean;
+  isHUM: boolean;
   cargoType: 'LOOSE' | 'ULD';
   uldType: 'AKH' | 'AKE' | 'PKC' | 'NONE';
   dgrTypes: string[]; // 'ICE', 'AVI', 'LITHIUM_BULK', 'LITHIUM_EQUIP', 'FLAM', 'EXPLOSIVE', 'GAS', 'TOXIC', 'RADIOACTIVE'
@@ -82,7 +87,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
         route: `${(input.origin || 'XXX').toUpperCase()} - ${(input.destination || 'XXX').toUpperCase()}`,
         aircraft: input.aircraft,
         registration: input.registration || 'N/A',
-        date: input.flightDate || new Date().toLocaleDateString('pt-BR')
+        date: input.flightDate || 'DD/MM/YYYY'
       },
       status: 'REJEITADO',
       posicoes: 0,
@@ -158,11 +163,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
       const cubedWeight = volumeM3 * 167;
       const cubedPos = Math.ceil(cubedWeight / 600);
       
-      // Limite de contagem de volumes (75 volumes soltos por posição)
-      const volCountPos = Math.ceil(p.volumes / 75);
-      
-      // A alocação final é o maior valor entre a necessidade por peso real, peso cubado e contagem de volumes
-      pranchaPos = Math.max(weightPos, cubedPos, volCountPos, 1); // Garante no mínimo 1 posição
+      // A alocação final é o maior valor entre a necessidade por peso real e peso cubado
+      pranchaPos = Math.max(weightPos, cubedPos, 1); // Garante no mínimo 1 posição
       
       // Se for um único volume indivisível e for muito comprido, ele vai dar overlap físico inevitável
       if (p.volumes === 1 && p.length > 150) {
@@ -172,32 +174,25 @@ export function generateManifest(input: CargoInput): ManifestResult {
           warnings.push(`INFO (Prancha ${pranchaNum}): Volume único longo detectado (${p.length}cm). Ocupará ${lengthPos} posições por Overlap físico.`);
         }
       } else if (p.volumes > 1 && p.length > 150) {
-        warnings.push(`INFO (Prancha ${pranchaNum}): Dimensões da prancha (${p.length}x${p.width}x${p.height}cm) indicam carga espalhada. Como são ${p.volumes} volumes soltos, assumimos que podem ser rearranjados no porão para otimizar espaço, ocupando ${pranchaPos} posição(ões) com base no peso real (${p.weight}kg), cubado (${Math.round(cubedWeight)}kg) e contagem de volumes.`);
+        warnings.push(`INFO (Prancha ${pranchaNum}): Dimensões da prancha (${p.length}x${p.width}x${p.height}cm) indicam carga espalhada. Como são ${p.volumes} volumes soltos, assumimos que podem ser rearranjados no porão para otimizar espaço, ocupando ${pranchaPos} posição(ões) com base no peso real (${p.weight}kg) e cubado (${Math.round(cubedWeight)}kg).`);
       }
       
       // Tratamento de Overlap Explícito (Oversize)
       if (p.hasOversize && p.oversizeVolumes > 0) {
-        // Cada volume oversize ocupa pelo menos 2 posições por overlap
-        const oversizePos = p.oversizeVolumes * 2;
+        // Calcula posições baseadas no comprimento do oversize (padrão 2 pos se > 150cm)
+        const oversizeLength = p.oversizeLength || 200;
+        const positionsPerOversize = Math.ceil(oversizeLength / 150);
         
-        // Peso restante da carga "normal"
-        const normalWeight = Math.max(0, p.weight - p.oversizeWeight);
-        const normalWeightPos = Math.ceil(normalWeight / 900);
-        
-        // Recalcula posições totais: posições do oversize + posições do peso normal
-        const totalPosWithOversize = oversizePos + normalWeightPos;
-        
-        if (totalPosWithOversize > pranchaPos) {
-          pranchaPos = totalPosWithOversize;
-          warnings.push(`INFO (Prancha ${pranchaNum}): Overlap explícito detectado. ${p.oversizeVolumes} volume(s) oversize ocupando ${oversizePos} posições. Carga restante (${normalWeight}kg) ocupa ${normalWeightPos} posição(ões). Total: ${pranchaPos} posições.`);
+        // Regra de consolidação (Dead Space): 
+        // Como os volumes oversize nem sempre são grandes (largos), eles não multiplicam 
+        // as posições. O limite de 900kg real/posição e 600kg cubado/posição já cuida da capacidade.
+        // Apenas garantimos que o comprimento físico mínimo seja respeitado.
+        if (positionsPerOversize > pranchaPos) {
+          pranchaPos = positionsPerOversize;
+          warnings.push(`INFO (Prancha ${pranchaNum}): Overlap explícito detectado. Item oversize bloqueando ${positionsPerOversize} posições físicas. A carga solta restante será consolidada no "dead space" destas posições.`);
         } else {
-          warnings.push(`INFO (Prancha ${pranchaNum}): Overlap explícito detectado (${p.oversizeVolumes} vols), mas o peso/volume total já exigia ${pranchaPos} posições, absorvendo o overlap.`);
+          warnings.push(`INFO (Prancha ${pranchaNum}): Overlap explícito detectado (${p.oversizeVolumes} vols), mas a cubagem/peso totais da prancha já exigiam ${pranchaPos} posições, absorvendo o overlap no espaço existente.`);
         }
-      }
-      
-      if (volCountPos > Math.max(weightPos, cubedPos) && (!p.hasOversize || pranchaPos === volCountPos)) {
-        warnings.push(`INFO (Prancha ${pranchaNum}): A quantidade de volumes (${p.volumes} vols) foi o fator determinante para alocar ${pranchaPos} posições (Limite: 75 vols/posição).`);
-        cubage_alert = true;
       }
       
       if (p.height > 114) {
@@ -264,6 +259,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
   const hasRadioactive = input.dgrTypes?.includes('RADIOACTIVE') || false;
   const hasIce = input.dgrTypes?.includes('ICE') || input.isICE;
   const hasAvi = input.dgrTypes?.includes('AVI') || input.isAVI;
+  const hasHum = input.isHUM;
 
   if (input.productType === 'PHARMA') {
     warnings.push('INFO: Produto PHARMA detectado. Prioridade de embarque ativada. Monitoramento de temperatura obrigatório.');
@@ -277,8 +273,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
     warnings.push('CRÍTICO: Produto ALIVE selecionado, mas flag AVI não está marcada. Correção automática aplicada.');
   }
 
-  if (input.productType === 'EXPRESS') {
-    warnings.push('INFO: Produto EXPRESS. Garantia de embarque (Must Ride).');
+  if (input.productType === 'VELOZ') {
+    warnings.push('INFO: Produto VELOZ. Garantia de embarque (Must Ride).');
   }
 
   // DGR Segregation Matrix (ICAO Table 9.3.A)
@@ -317,8 +313,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
     status = 'REJEITADO';
   }
   
-  if ((input.dgrTypes && input.dgrTypes.length > 0) || input.isDGR || hasIce || hasAvi) {
-    warnings.push('AVISO: Presença de DGR/ICE/AVI. Requer emissão de NOTOC.');
+  if ((input.dgrTypes && input.dgrTypes.length > 0) || input.isDGR || hasIce || hasAvi || hasHum) {
+    warnings.push('AVISO: Presença de DGR/ICE/AVI/HUM. Requer emissão de NOTOC (Notification to Captain).');
     if (status !== 'REJEITADO') status = 'ALERTA';
   }
   
@@ -412,7 +408,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
       route: `${(input.origin || 'XXX').toUpperCase()} - ${(input.destination || 'XXX').toUpperCase()}`,
       aircraft: input.aircraft,
       registration: input.registration || 'N/A',
-      date: input.flightDate || new Date().toLocaleDateString('pt-BR')
+      date: input.flightDate || 'DD/MM/YYYY'
     },
     status,
     posicoes: posicoes + bulk,

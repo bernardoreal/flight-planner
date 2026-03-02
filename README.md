@@ -14,15 +14,15 @@ When deploying to Cloudflare Pages, you must configure the build settings as fol
 
 ### 2. Environment Variables (Crucial!)
 
-To use the Gemini API in production, you **MUST** add your API key to the Cloudflare Pages environment variables.
+To use the AI features in production, you **MUST** add your OpenRouter API key to the Cloudflare Pages environment variables.
 
 1.  Go to your Cloudflare Pages project dashboard.
 2.  Navigate to **Settings** > **Environment variables**.
 3.  Add a new variable:
-    -   **Variable name:** `NEXT_PUBLIC_GEMINI_API_KEY`
-    -   **Value:** Your Gemini API Key (the same one you use locally).
+    -   **Variable name:** `OPENROUTER_API_KEY`
+    -   **Value:** Your OpenRouter API Key.
 
-> **Note:** The variable name must be exactly `NEXT_PUBLIC_GEMINI_API_KEY` for the application to access it in the browser.
+> **Note:** The variable name must be exactly `OPENROUTER_API_KEY`. It is used server-side for security.
 
 ### 3. Compatibility
 

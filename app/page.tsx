@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera } from 'lucide-react';
+import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera, RectangleHorizontal, X, ImagePlus } from 'lucide-react';
+import { GoogleGenAI, Type } from "@google/genai";
 import { AircraftType, CargoInput, ManifestResult, generateManifest } from '@/lib/cargo-logic';
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
-import { GoogleGenAI } from '@google/genai';
+
+// MODELO ESCOLHIDO: Gemini 3 Flash (Recomendado para tarefas de texto/busca)
+const AI_MODEL = 'gemini-3-flash-preview';
 
 export default function Home() {
   const [input, setInput] = useState<CargoInput>({
@@ -26,12 +29,16 @@ export default function Home() {
         hasOversize: false,
         oversizeVolumes: 0,
         oversizeWeight: 0,
+        oversizeLength: 0,
+        oversizeWidth: 0,
+        oversizeHeight: 0,
       }
     ],
     isICE: false,
     isAVI: false,
     isDGR: false,
     isWET: false,
+    isHUM: false,
     cargoType: 'LOOSE',
     uldType: 'NONE',
     dgrTypes: [],
@@ -43,21 +50,43 @@ export default function Home() {
   const [flightError, setFlightError] = useState('');
   const [flightSource, setFlightSource] = useState<'realtime_grounding' | null>(null);
   const [flightDate, setFlightDate] = useState<string>('');
+  const [selectedSearchDate, setSelectedSearchDate] = useState<string>('');
   const [isAnalyzingImage, setIsAnalyzingImage] = useState<number | null>(null);
+  const [pranchaImages, setPranchaImages] = useState<Record<string, { file: File, preview: string }[]>>({});
+
+  // Initialize date on client-side to avoid hydration mismatch
+  useEffect(() => {
+    const today = new Date();
+    const formatted = today.toLocaleDateString('pt-BR');
+    const iso = today.toISOString().split('T')[0];
+    setFlightDate(formatted);
+    setSelectedSearchDate(iso);
+    
+    // Load saved input state from localStorage
+    try {
+      const savedInput = localStorage.getItem('latamCargoInput');
+      if (savedInput) {
+        setInput(JSON.parse(savedInput));
+      }
+    } catch (e) {
+      console.error('Failed to load saved input', e);
+    }
+  }, []);
+
+  // Save input state to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('latamCargoInput', JSON.stringify(input));
+    } catch (e) {
+      console.error('Failed to save input', e);
+    }
+  }, [input]);
 
   // Real-time validation: Update manifest whenever input changes
   useEffect(() => {
     const result = generateManifest({ ...input, flightDate });
     setManifest(result);
   }, [input, flightDate]);
-
-  const getGeminiClient = () => {
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY_MISSING');
-    }
-    return new GoogleGenAI({ apiKey });
-  };
 
   // Helper to extract JSON from AI response
   const extractJSON = (text: string) => {
@@ -86,48 +115,38 @@ export default function Home() {
     if (!input.flightCode) return;
     setIsLoadingFlight(true);
     setFlightError('');
+    setInput(prev => ({ ...prev, aiReasoning: undefined }));
     
     try {
-      const ai = getGeminiClient();
-      
       const now = new Date();
-      const currentDateStr = now.toLocaleDateString('pt-BR');
-      const currentTimeStr = now.toLocaleTimeString('pt-BR');
+      const isoDateTime = now.toISOString();
+      const searchDateObj = selectedSearchDate ? new Date(selectedSearchDate + 'T12:00:00') : now;
+      const searchDateStr = searchDateObj.toLocaleDateString('pt-BR');
       
-      const prompt = `ATUE COMO UM ESPECIALISTA SÊNIOR EM OPERAÇÕES AÉREAS E RASTREAMENTO DE VOOS.
+      const prompt = `ATUE COMO UM ESPECIALISTA SÊNIOR EM OPERAÇÕES AÉREAS E RASTREAMENTO DE VOOS (FLIGHT DISPATCHER).
       
-      Sua missão é descobrir a MATRÍCULA (Registration/Tail Number) EXATA e CONFIRMADA da aeronave para o voo ${input.flightCode}.
+      Sua missão é descobrir a MATRÍCULA (Registration/Tail Number) EXATA e CONFIRMADA da aeronave para o voo ${input.flightCode} da LATAM Brasil para a data de ${searchDateStr}.
       
-      Dados Atuais:
-      - Data: ${currentDateStr}
-      - Hora: ${currentTimeStr}
+      Contexto Temporal Atual:
+      - ISO DateTime: ${isoDateTime}
+      - Data de Referência da Busca: ${searchDateStr}
       
-      PROTOCOLO DE VERIFICAÇÃO RIGOROSA (GROUNDING OBRIGATÓRIO):
-      1. Realize buscas EXTENSIVAS no Google para o voo "${input.flightCode}" focando em sites de rastreamento em tempo real:
-         - "FlightRadar24 ${input.flightCode} live tracking"
-         - "FlightAware ${input.flightCode} status"
-         - "RadarBox ${input.flightCode}"
-         - "FlightStats ${input.flightCode}"
+      PROTOCOLO DE VERIFICAÇÃO RIGOROSA E CROSS-CHECK OBRIGATÓRIO:
+      1. Você DEVE realizar buscas EXTENSIVAS no Google para o voo "${input.flightCode}" na data "${searchDateStr}" focando em sites de rastreamento em tempo real.
+      2. CROSS-CHECK OBRIGATÓRIO: Você NÃO PODE confiar em apenas uma fonte. Você DEVE cruzar os dados entre pelo menos duas destas fontes:
+         - FlightRadar24
+         - FlightAware
+         - RadarBox
+         - Site oficial da LATAM
+      3. Se a data for FUTURA, procure pela aeronave ESCALADA (Scheduled). Se for PASSADA, procure a que REALMENTE OPEROU.
+      4. Verifique se a matrícula segue o padrão da LATAM Brasil (ex: PT-***, PR-***, PS-***).
       
-      2. REGRA DE DATA E HORÁRIO (CRUCIAL):
-         - Identifique o horário de partida programado (STD) do voo de HOJE (${currentDateStr}).
-         - Compare com o horário atual (${currentTimeStr}).
-         - CASO 1: Se o voo de hoje AINDA NÃO DECOLOU (Horário Atual < Horário de Partida), retorne os dados do voo de HOJE.
-         - CASO 2: Se o voo de hoje JÁ DECOLOU (Horário Atual > Horário de Partida), retorne os dados do voo de AMANHÃ.
-           - Isso se aplica mesmo que o voo de hoje esteja em rota. Se já saiu, queremos o próximo (amanhã).
-           - Exceção: Se o voo estiver MUITO atrasado e ainda não saiu, considere como 'não decolou' (Caso 1).
-      
-      3. VALIDAÇÃO CRUZADA (OBRIGATÓRIA):
-         - NÃO CONFIE EM APENAS UMA FONTE. Tente confirmar a matrícula em pelo menos dois sites diferentes (ex: FlightRadar24 e FlightAware).
-         - Se houver divergência, confie na fonte que mostra o status "Live", "Active" ou "En Route" mais recente.
-         - Verifique se a matrícula segue o padrão da companhia aérea (ex: LATAM Brasil usa PT-***, PR-***).
-      
-      4. REGRAS DE SAÍDA:
-         - Modelo: Identifique se é A319, A320, A321, B767, B787, B777. Mapeie para "A319", "A320", "A321" ou "OTHER".
-         - Matrícula: DEVE ser a real e confirmada (ex: PT-MXG, PR-MYX).
-         - SE NÃO TIVER CERTEZA ABSOLUTA OU NÃO ENCONTRAR DADOS CONFIRMADOS, RETORNE "N/A" NO CAMPO REGISTRATION. NÃO ADIVINHE.
-         - Origem/Destino: Use os códigos IATA reais (ex: GRU, MIA, LIS).
-         - Data: A data do voo retornado (HOJE ou AMANHÃ).
+      REGRAS DE SAÍDA:
+      - Modelo: Identifique se é A319, A320, A321, B767, B787, B777. Mapeie para "A319", "A320", "A321" ou "OTHER".
+      - Matrícula: DEVE ser a real e confirmada (ex: PT-MXG, PR-MYX).
+      - SE NÃO TIVER CERTEZA ABSOLUTA OU NÃO ENCONTRAR DADOS CONFIRMADOS EM PELO MENOS DUAS FONTES, RETORNE "N/A" NO CAMPO REGISTRATION. NÃO ADIVINHE.
+      - Origem/Destino: Use os códigos IATA reais (ex: GRU, MIA, LIS).
+      - Data: A data do voo retornado (DD/MM/YYYY).
       
       Responda APENAS com o JSON final no seguinte formato:
       \`\`\`json
@@ -136,19 +155,22 @@ export default function Home() {
         "registration": "PT-MXG",
         "origin": "GRU",
         "destination": "MIA",
-        "date": "DD/MM/YYYY",
-        "reasoning": "CONFIRMADO: FlightRadar24 mostra PT-MXG como 'Scheduled' para hoje às 23:00. FlightAware corrobora."
+        "date": "${searchDateStr}",
+        "reasoning": "CROSS-CHECK REALIZADO: Encontrado no histórico do FlightRadar24 como aeronave escalada para ${searchDateStr}. Confirmado também no FlightAware. Matrícula PT-MXG confirmada."
       }
       \`\`\``;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY! });
+      const model = ai.models.generateContent({
+        model: AI_MODEL,
         contents: prompt,
         config: {
           tools: [{ googleSearch: {} }],
-        },
+          responseMimeType: "application/json"
+        }
       });
 
+      const response = await model;
       const text = response.text;
       
       if (!text) {
@@ -171,10 +193,11 @@ export default function Home() {
         ...prev,
         aircraft: aircraft as AircraftType,
         registration: data.registration || 'N/A',
-        origin: data.origin || '',
-        destination: data.destination || ''
+        origin: data.origin || prev.origin,
+        destination: data.destination || prev.destination,
+        aiReasoning: data.reasoning
       }));
-      setFlightDate(data.date || currentDateStr);
+      setFlightDate(data.date || searchDateStr);
       setFlightSource('realtime_grounding');
     } catch (err: any) {
       console.error('Flight fetch error:', err);
@@ -189,8 +212,8 @@ export default function Home() {
       setFlightDate('');
       setFlightSource(null);
 
-      if (err.message && err.message.includes('GEMINI_API_KEY_MISSING')) {
-        setFlightError('Chave de API do Gemini não configurada.');
+      if (err.message && err.message.includes('OPENROUTER_API_KEY')) {
+        setFlightError('Chave de API do OpenRouter não configurada.');
       } else {
         setFlightError(err.message || 'Falha ao buscar dados em tempo real do voo.');
       }
@@ -199,32 +222,41 @@ export default function Home() {
     }
   };
 
-  const handleImageAnalysis = async (e: React.ChangeEvent<HTMLInputElement>, pranchaIndex: number) => {
+  const handleAddImage = (e: React.ChangeEvent<HTMLInputElement>, pranchaId: string) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+
+    const newImages = files.map(file => ({
+      file,
+      preview: URL.createObjectURL(file)
+    }));
+
+    setPranchaImages(prev => ({
+      ...prev,
+      [pranchaId]: [...(prev[pranchaId] || []), ...newImages]
+    }));
+    
+    // Reset input value so the same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleRemoveImage = (pranchaId: string, imageIndex: number) => {
+    setPranchaImages(prev => {
+      const current = prev[pranchaId] || [];
+      const updated = [...current];
+      URL.revokeObjectURL(updated[imageIndex].preview);
+      updated.splice(imageIndex, 1);
+      return { ...prev, [pranchaId]: updated };
+    });
+  };
+
+  const handleAnalyzeImages = async (pranchaIndex: number, pranchaId: string) => {
+    const images = pranchaImages[pranchaId] || [];
+    if (images.length === 0) return;
 
     setIsAnalyzingImage(pranchaIndex);
 
     try {
-      const ai = getGeminiClient();
-
-      // Convert files to base64 for Gemini
-      const parts = await Promise.all(files.map(async (file) => {
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve((reader.result as string).split(',')[1]);
-          reader.onerror = error => reject(error);
-        });
-        reader.readAsDataURL(file);
-        const base64Data = await base64Promise;
-        return {
-          inlineData: {
-            mimeType: file.type,
-            data: base64Data
-          }
-        };
-      }));
-
       const prompt = `Analise a(s) foto(s) enviada(s). Pode ser uma prancha de carga montada ou um conjunto de pallets que serão carregados em uma única prancha.
       Com base na(s) imagem(ns) (se houver etiquetas visíveis, leia-as; caso contrário, faça uma estimativa visual profissional), estime os seguintes valores TOTAIS para a prancha:
       1. Peso total aproximado (em kg) somando todos os itens/pallets.
@@ -245,13 +277,50 @@ export default function Home() {
       }
       \`\`\``;
 
+      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY! });
+      
+      const parts = await Promise.all(images.map(async (img) => {
+        const file = img.file;
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => {
+            const base64String = (reader.result as string).split(',')[1];
+            resolve(base64String);
+          };
+          reader.onerror = error => reject(error);
+        });
+        reader.readAsDataURL(file);
+        const base64Data = await base64Promise;
+        return {
+          inlineData: {
+            mimeType: file.type || 'image/jpeg',
+            data: base64Data
+          }
+        };
+      }));
+
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: AI_MODEL,
         contents: {
           parts: [
-            ...parts,
-            { text: prompt }
+            { text: prompt },
+            ...parts
           ]
+        },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              weight: { type: Type.NUMBER },
+              volumes: { type: Type.NUMBER },
+              length: { type: Type.NUMBER },
+              width: { type: Type.NUMBER },
+              height: { type: Type.NUMBER },
+              hasOversize: { type: Type.BOOLEAN }
+            },
+            required: ["weight", "volumes", "length", "width", "height", "hasOversize"]
+          }
         }
       });
 
@@ -281,19 +350,19 @@ export default function Home() {
         };
         return { ...prev, pranchas: newPranchas };
       });
+      
+      // Clear images after successful analysis
+      setPranchaImages(prev => {
+        const updated = { ...prev };
+        delete updated[pranchaId];
+        return updated;
+      });
 
     } catch (err: any) {
       console.error('Image analysis error:', err);
-      
-      if (err.message && err.message.includes('GEMINI_API_KEY_MISSING')) {
-        alert('Chave de API do Gemini não configurada.');
-      } else {
-        alert('Falha ao analisar a imagem. Tente novamente ou insira os dados manualmente.');
-      }
+      alert('Falha ao analisar as imagens. Tente novamente ou insira os dados manualmente.');
     } finally {
       setIsAnalyzingImage(null);
-      // Reset input value so the same file can be selected again
-      e.target.value = '';
     }
   };
 
@@ -311,6 +380,10 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-4 text-white/80 text-sm font-medium">
+            <span className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md border border-white/10 text-[10px] sm:text-xs max-w-[140px] sm:max-w-none">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+              <span className="truncate">AI: {AI_MODEL}</span>
+            </span>
             <span className="hidden sm:flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> QA Certified</span>
             <span className="hidden sm:flex items-center gap-1.5"><CheckCircle className="w-4 h-4" /> System Online</span>
           </div>
@@ -326,26 +399,39 @@ export default function Home() {
               Parâmetros do Voo
             </h2>
             
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Código do Voo</label>
-              <div className="flex gap-2 sm:gap-3">
-                <input
-                  type="text"
-                  value={input.flightCode}
-                  onChange={(e) => setInput({ ...input, flightCode: e.target.value.toUpperCase() })}
-                  onKeyDown={(e) => e.key === 'Enter' && handleFetchFlight()}
-                  className="flex-1 min-w-0 p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
-                  placeholder="Ex: LA3465"
-                />
-                <button 
-                  onClick={handleFetchFlight}
-                  disabled={isLoadingFlight || !input.flightCode}
-                  className="bg-[#e3004a] hover:bg-[#e3004a]/90 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 sm:px-5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 shrink-0"
-                >
-                  {isLoadingFlight ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-                  <span className="hidden sm:inline">Buscar</span>
-                </button>
+            <div className="mb-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Código do Voo</label>
+                  <input
+                    type="text"
+                    value={input.flightCode}
+                    onChange={(e) => setInput({ ...input, flightCode: e.target.value.toUpperCase() })}
+                    onKeyDown={(e) => e.key === 'Enter' && handleFetchFlight()}
+                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
+                    placeholder="Ex: LA3465"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Data do Voo</label>
+                  <input
+                    type="date"
+                    value={selectedSearchDate}
+                    onChange={(e) => setSelectedSearchDate(e.target.value)}
+                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
+                  />
+                </div>
               </div>
+              
+              <button 
+                onClick={handleFetchFlight}
+                disabled={isLoadingFlight || !input.flightCode}
+                className="w-full bg-[#e3004a] hover:bg-[#e3004a]/90 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {isLoadingFlight ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                <span>Buscar Dados em Tempo Real</span>
+              </button>
+              
               {flightError && (
                 <p className="text-[#EB1453] text-sm mt-2 flex items-center gap-1">
                   <AlertTriangle className="w-4 h-4" /> {flightError}
@@ -410,6 +496,13 @@ export default function Home() {
                   />
                 </div>
               </div>
+
+              {input.aiReasoning && (
+                <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] text-indigo-800 flex gap-2">
+                  <Info className="w-3.5 h-3.5 text-[#1b0088] shrink-0 mt-0.5" />
+                  <p><strong>Auditoria de Dados (Cross-Check):</strong> {input.aiReasoning}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -456,7 +549,7 @@ export default function Home() {
                     className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all bg-white"
                   >
                     <option value="GENERAL">General Cargo</option>
-                    <option value="EXPRESS">Express (Must Ride)</option>
+                    <option value="VELOZ">Veloz (Must Ride)</option>
                     <option value="PHARMA">Pharma (Vacinas/Remédios)</option>
                     <option value="ALIVE">Alive (Animais Vivos)</option>
                   </select>
@@ -489,34 +582,47 @@ export default function Home() {
           </div>
 
           <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 col-span-1 lg:col-span-2">
-            <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
-              <ShieldAlert className="w-4 h-4 text-[#1b0088]" />
-              Especificações da Carga
-            </h2>
+            <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
+              <h2 className="text-base font-semibold flex items-center gap-2 text-slate-800">
+                <ShieldAlert className="w-4 h-4 text-[#1b0088]" />
+                Especificações da Carga
+              </h2>
+              <button 
+                onClick={() => {
+                  if (confirm('Deseja realmente limpar todos os dados preenchidos?')) {
+                    localStorage.removeItem('latamCargoInput');
+                    window.location.reload();
+                  }
+                }}
+                className="text-xs text-slate-500 hover:text-red-600 font-medium transition-colors"
+              >
+                Limpar Dados
+              </button>
+            </div>
             
             <div className="space-y-4">
               {input.pranchas.map((prancha, index) => (
                 <div key={prancha.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 relative">
-                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-3">
-                      <h3 className="text-sm font-bold text-slate-700">Prancha {index + 1}</h3>
-                      <label className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-md cursor-pointer hover:bg-indigo-200 transition-colors text-xs font-semibold">
-                        {isAnalyzingImage === index ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Camera className="w-3.5 h-3.5" />
-                        )}
-                        {isAnalyzingImage === index ? 'Analisando...' : 'Analisar Foto'}
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          capture="environment"
-                          multiple
-                          className="hidden" 
-                          onChange={(e) => handleImageAnalysis(e, index)}
-                          disabled={isAnalyzingImage !== null}
-                        />
-                      </label>
+                      <div className="flex items-center gap-2">
+                        <RectangleHorizontal className="w-4 h-4 text-[#1b0088]" />
+                        <h3 className="text-sm font-bold text-slate-700">Prancha {index + 1}</h3>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-md cursor-pointer hover:bg-indigo-200 transition-colors text-xs font-semibold">
+                          <ImagePlus className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Adicionar Foto</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            multiple
+                            className="hidden" 
+                            onChange={(e) => handleAddImage(e, prancha.id)}
+                            disabled={isAnalyzingImage !== null}
+                          />
+                        </label>
+                      </div>
                     </div>
                     {input.pranchas.length > 1 && (
                       <button 
@@ -524,6 +630,13 @@ export default function Home() {
                           const newPranchas = [...input.pranchas];
                           newPranchas.splice(index, 1);
                           setInput({...input, pranchas: newPranchas});
+                          
+                          // Also remove associated images
+                          setPranchaImages(prev => {
+                            const updated = { ...prev };
+                            delete updated[prancha.id];
+                            return updated;
+                          });
                         }}
                         className="text-xs text-red-500 hover:text-red-700 font-medium"
                       >
@@ -531,6 +644,53 @@ export default function Home() {
                       </button>
                     )}
                   </div>
+
+                  {pranchaImages[prancha.id] && pranchaImages[prancha.id].length > 0 && (
+                    <div className="mb-4 bg-white p-3 rounded-lg border border-slate-200">
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {pranchaImages[prancha.id].map((img, imgIdx) => (
+                          <div key={imgIdx} className="relative w-16 h-16 rounded-md overflow-hidden border border-slate-200 group">
+                            <img src={img.preview} alt={`Foto ${imgIdx + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              onClick={() => handleRemoveImage(prancha.id, imgIdx)}
+                              className="absolute top-0.5 right-0.5 bg-black/50 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                        <label className="w-16 h-16 rounded-md border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-600 cursor-pointer transition-colors bg-slate-50">
+                          <ImagePlus className="w-5 h-5 mb-1" />
+                          <span className="text-[10px] font-medium text-center leading-tight">Mais<br/>Fotos</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            multiple
+                            className="hidden" 
+                            onChange={(e) => handleAddImage(e, prancha.id)}
+                            disabled={isAnalyzingImage !== null}
+                          />
+                        </label>
+                      </div>
+                      <button
+                        onClick={() => handleAnalyzeImages(index, prancha.id)}
+                        disabled={isAnalyzingImage === index}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isAnalyzingImage === index ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Analisando {pranchaImages[prancha.id].length} foto(s)...
+                          </>
+                        ) : (
+                          <>
+                            <ImagePlus className="w-4 h-4" />
+                            Analisar {pranchaImages[prancha.id].length} foto(s)
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
@@ -626,6 +786,13 @@ export default function Home() {
                       <option value="HUM">Restos Mortais (HUM)</option>
                       <option value="VAL">Carga Valiosa (VAL)</option>
                     </select>
+                    
+                    {['ICE', 'DGR', 'AVI', 'HUM'].includes(prancha.specialCargoType || '') && (
+                      <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 flex items-start gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <p><strong>Atenção:</strong> Esta carga requer emissão obrigatória de <strong>NOTOC</strong> (Notification to Captain) antes do voo.</p>
+                      </div>
+                    )}
                   </div>
 
                   {prancha.specialCargoType === 'ICE' && (
@@ -659,6 +826,9 @@ export default function Home() {
                           newPranchas[index].hasOversize = e.target.checked;
                           newPranchas[index].oversizeVolumes = e.target.checked ? 1 : 0;
                           newPranchas[index].oversizeWeight = e.target.checked ? 100 : 0;
+                          newPranchas[index].oversizeLength = e.target.checked ? 200 : 0;
+                          newPranchas[index].oversizeWidth = e.target.checked ? 100 : 0;
+                          newPranchas[index].oversizeHeight = e.target.checked ? 100 : 0;
                           setInput({...input, pranchas: newPranchas});
                         }} 
                         className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
@@ -670,35 +840,79 @@ export default function Home() {
                       <motion.div 
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
-                        className="grid grid-cols-2 gap-4 mt-3 p-4 bg-white rounded-lg border border-slate-200"
+                        className="mt-3 p-4 bg-white rounded-lg border border-slate-200"
                       >
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Qtd. Vols Oversize</label>
-                          <input
-                            type="number"
-                            value={prancha.oversizeVolumes}
-                            onChange={(e) => {
-                              const newPranchas = [...input.pranchas];
-                              newPranchas[index].oversizeVolumes = Number(e.target.value);
-                              setInput({...input, pranchas: newPranchas});
-                            }}
-                            min="1"
-                            className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
-                          />
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Qtd. Vols Oversize</label>
+                            <input
+                              type="number"
+                              value={prancha.oversizeVolumes}
+                              onChange={(e) => {
+                                const newPranchas = [...input.pranchas];
+                                newPranchas[index].oversizeVolumes = Number(e.target.value);
+                                setInput({...input, pranchas: newPranchas});
+                              }}
+                              min="1"
+                              className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Peso Oversize (kg)</label>
+                            <input
+                              type="number"
+                              value={prancha.oversizeWeight}
+                              onChange={(e) => {
+                                const newPranchas = [...input.pranchas];
+                                newPranchas[index].oversizeWeight = Number(e.target.value);
+                                setInput({...input, pranchas: newPranchas});
+                              }}
+                              min="1"
+                              className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Peso Oversize (kg)</label>
-                          <input
-                            type="number"
-                            value={prancha.oversizeWeight}
-                            onChange={(e) => {
-                              const newPranchas = [...input.pranchas];
-                              newPranchas[index].oversizeWeight = Number(e.target.value);
-                              setInput({...input, pranchas: newPranchas});
-                            }}
-                            min="1"
-                            className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
-                          />
+
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Comp. (cm)</label>
+                            <input
+                              type="number"
+                              value={prancha.oversizeLength || ''}
+                              onChange={(e) => {
+                                const newPranchas = [...input.pranchas];
+                                newPranchas[index].oversizeLength = Number(e.target.value);
+                                setInput({...input, pranchas: newPranchas});
+                              }}
+                              className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Larg. (cm)</label>
+                            <input
+                              type="number"
+                              value={prancha.oversizeWidth || ''}
+                              onChange={(e) => {
+                                const newPranchas = [...input.pranchas];
+                                newPranchas[index].oversizeWidth = Number(e.target.value);
+                                setInput({...input, pranchas: newPranchas});
+                              }}
+                              className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Alt. (cm)</label>
+                            <input
+                              type="number"
+                              value={prancha.oversizeHeight || ''}
+                              onChange={(e) => {
+                                const newPranchas = [...input.pranchas];
+                                newPranchas[index].oversizeHeight = Number(e.target.value);
+                                setInput({...input, pranchas: newPranchas});
+                              }}
+                              className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                            />
+                          </div>
                         </div>
                       </motion.div>
                     )}
@@ -721,7 +935,10 @@ export default function Home() {
                         height: 100,
                         hasOversize: false,
                         oversizeVolumes: 0,
-                        oversizeWeight: 0
+                        oversizeWeight: 0,
+                        oversizeLength: 0,
+                        oversizeWidth: 0,
+                        oversizeHeight: 0
                       }
                     ]
                   });

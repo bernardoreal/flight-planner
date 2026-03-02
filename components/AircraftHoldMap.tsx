@@ -44,8 +44,8 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
   };
 
   return (
-    <div className="bg-[#1e293b]/30 rounded-lg p-4 border border-slate-700/50 mb-6 overflow-hidden">
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4 border-b border-slate-700/50 pb-2">
+    <div className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10 mb-6 overflow-hidden">
+      <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-4 border-b border-white/10 pb-2">
         Mapa de Porões (Visualização de Carregamento)
       </h3>
       
@@ -138,14 +138,14 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
         </div>
       </div>
       
-      <div className="flex items-center justify-center gap-4 mt-4 pt-3 border-t border-slate-700/50">
+      <div className="flex items-center justify-center gap-4 mt-4 pt-3 border-t border-white/10">
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-[#e3004a]/20 border border-[#e3004a]"></div>
-          <span className="text-[9px] text-slate-400 font-mono">Ocupado</span>
+          <div className="w-2.5 h-2.5 rounded-sm bg-[#e3004a]/40 border border-[#e3004a]"></div>
+          <span className="text-[9px] text-white/40 font-mono">Ocupado</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-slate-800/80 border border-slate-600"></div>
-          <span className="text-[9px] text-slate-400 font-mono">Livre</span>
+          <div className="w-2.5 h-2.5 rounded-sm bg-white/5 border border-white/10"></div>
+          <span className="text-[9px] text-white/40 font-mono">Livre</span>
         </div>
       </div>
     </div>
