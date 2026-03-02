@@ -26,6 +26,7 @@ export interface CargoInput {
   registration: string;
   flightDate?: string;
   aiReasoning?: string;
+  clsInfo?: string;
   pranchas: Prancha[];
   isICE: boolean;
   isAVI: boolean;
@@ -60,6 +61,7 @@ export interface ManifestResult {
   // Extra fields for UI
   stability: string;
   netAvailability: number;
+  clsInfo?: string;
   allocation: {
     fwd: number;
     aft: number;
@@ -102,6 +104,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
       json_valid: true,
       stability: 'N/A',
       netAvailability: 0,
+      clsInfo: input.clsInfo,
       allocation: { fwd: 0, aft: 0, bulk: 0 },
       max_cargo_weight: 0,
       dov_alert: ''
@@ -423,6 +426,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
     json_valid: true,
     stability,
     netAvailability: Math.max(0, config.totalPos - config.bagsPos - posicoes - bulk),
+    clsInfo: input.clsInfo,
     allocation: { fwd, aft, bulk },
     max_cargo_weight,
     dov_alert

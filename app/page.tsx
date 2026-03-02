@@ -147,6 +147,7 @@ export default function Home() {
       - SE NÃO TIVER CERTEZA ABSOLUTA OU NÃO ENCONTRAR DADOS CONFIRMADOS EM PELO MENOS DUAS FONTES, RETORNE "N/A" NO CAMPO REGISTRATION. NÃO ADIVINHE.
       - Origem/Destino: Use os códigos IATA reais (ex: GRU, MIA, LIS).
       - Data: A data do voo retornado (DD/MM/YYYY).
+      - CLS (Cargo Loading System): Verifique e informe se a aeronave identificada possui o sistema de carregamento mecanizado (CLS) instalado nos compartimentos 1, 2, 3 e 4.
       
       Responda APENAS com o JSON final no seguinte formato:
       \`\`\`json
@@ -156,6 +157,7 @@ export default function Home() {
         "origin": "GRU",
         "destination": "MIA",
         "date": "${searchDateStr}",
+        "clsInfo": "Aeronave equipada com CLS nos compartimentos 1, 2, 3 e 4.",
         "reasoning": "CROSS-CHECK REALIZADO: Encontrado no histórico do FlightRadar24 como aeronave escalada para ${searchDateStr}. Confirmado também no FlightAware. Matrícula PT-MXG confirmada."
       }
       \`\`\``;
@@ -195,7 +197,8 @@ export default function Home() {
         registration: data.registration || 'N/A',
         origin: data.origin || prev.origin,
         destination: data.destination || prev.destination,
-        aiReasoning: data.reasoning
+        aiReasoning: data.reasoning,
+        clsInfo: data.clsInfo
       }));
       setFlightDate(data.date || searchDateStr);
       setFlightSource('realtime_grounding');
@@ -982,6 +985,12 @@ export default function Home() {
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">Voo / Rota / Aeronave</p>
                   <p className="text-lg font-mono font-bold text-slate-100">{manifest.flight_info.code} <span className="text-slate-600">|</span> {manifest.flight_info.route}</p>
                   <p className="text-xs font-mono text-slate-400 mt-1">{manifest.flight_info.aircraft} ({manifest.flight_info.registration}) <span className="text-slate-600">|</span> <span className="text-emerald-400">{manifest.flight_info.date}</span></p>
+                  {manifest.clsInfo && (
+                    <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-start gap-2">
+                      <Info className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                      <p className="text-[10px] font-mono text-blue-300 leading-relaxed">{manifest.clsInfo}</p>
+                    </div>
+                  )}
                 </div>
                 <div className="bg-[#1e293b]/50 rounded-lg p-4 border border-slate-700/50">
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">Estabilidade</p>
