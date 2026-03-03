@@ -638,7 +638,9 @@ export default function Home() {
                     </p>
                     <div className="flex justify-between items-end gap-4">
                       <div>
-                        <span className="text-xs text-slate-500 block">Peso Real Total</span>
+                        <span className="text-xs text-slate-500 block">
+                          {input.cargoType === 'LOOSE' ? 'Peso Real Total' : 'Peso Bruto Total (c/ Tara)'}
+                        </span>
                         <span className="text-lg font-bold text-slate-800 font-mono">
                           {input.pranchas.reduce((acc, p) => acc + p.weight, 0).toLocaleString('pt-BR')} kg
                         </span>
@@ -650,22 +652,61 @@ export default function Home() {
                         </span>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs text-slate-500 block">Peso Cubado Total</span>
+                        <span className="text-xs text-slate-500 block">
+                          {input.cargoType === 'LOOSE' ? 'Peso Cubado Total' : 'Peso Volumétrico (Fixo IATA)'}
+                        </span>
                         {(() => {
-                          const totalCubedWeight = Math.round(input.pranchas.reduce((acc, p) => {
-                            return acc + ((p.length * p.width * p.height) / 6000);
-                          }, 0));
-                          const maxCubedWeight = input.pranchas.length * 600;
+                          let totalCubedWeight = 0;
+                          let maxCubedWeight = 0;
+
+                          if (input.cargoType === 'LOOSE') {
+                            totalCubedWeight = Math.round(input.pranchas.reduce((acc, p) => {
+                              return acc + ((p.length * p.width * p.height) / 6000);
+                            }, 0));
+                            maxCubedWeight = input.pranchas.length * 600;
+                          } else {
+                            // ULD Fixed Volumetric Weights (Volume m3 * 166.67 kg/m3)
+                            const uldVolumetricWeights: Record<string, number> = {
+                              'AKH': 583, // ~3.5 m3
+                              'AKE': 716, // ~4.3 m3
+                              'PKC': 583, // ~3.5 m3
+                              'NONE': 0
+                            };
+                            const fixedWeight = uldVolumetricWeights[input.uldType] || 583;
+                            totalCubedWeight = input.pranchas.length * fixedWeight;
+                            
+                            // For ULDs, max cubed weight is the max gross weight of the ULDs
+                            const uldMaxGrossWeights: Record<string, number> = {
+                              'AKH': 1134,
+                              'AKE': 1588,
+                              'PKC': 1500,
+                              'NONE': 1134
+                            };
+                            maxCubedWeight = input.pranchas.length * (uldMaxGrossWeights[input.uldType] || 1134);
+                          }
+
                           const cubedWeightPercentage = totalCubedWeight / maxCubedWeight;
                           let cubedWeightColor = "text-indigo-600";
                           let cubedWeightAlert = null;
 
-                          if (cubedWeightPercentage >= 0.9) {
-                            cubedWeightColor = "text-red-600";
-                            cubedWeightAlert = <span className="text-[10px] text-red-600 font-bold block mt-0.5">⚠️ Limite Crítico (90%+)</span>;
-                          } else if (cubedWeightPercentage >= 0.8) {
-                            cubedWeightColor = "text-amber-500";
-                            cubedWeightAlert = <span className="text-[10px] text-amber-500 font-bold block mt-0.5">⚠️ Atenção (80%+)</span>;
+                          if (input.cargoType === 'LOOSE') {
+                            if (cubedWeightPercentage >= 0.9) {
+                              cubedWeightColor = "text-red-600";
+                              cubedWeightAlert = <span className="text-[10px] text-red-600 font-bold block mt-0.5">⚠️ Limite Crítico (90%+)</span>;
+                            } else if (cubedWeightPercentage >= 0.8) {
+                              cubedWeightColor = "text-amber-500";
+                              cubedWeightAlert = <span className="text-[10px] text-amber-500 font-bold block mt-0.5">⚠️ Atenção (80%+)</span>;
+                            }
+                          } else {
+                            // For ULDs, show if the actual gross weight exceeds the volumetric weight (Dense Cargo)
+                            const totalGrossWeight = input.pranchas.reduce((acc, p) => acc + p.weight, 0);
+                            if (totalGrossWeight > totalCubedWeight) {
+                              cubedWeightColor = "text-emerald-600";
+                              cubedWeightAlert = <span className="text-[10px] text-emerald-600 font-bold block mt-0.5">Carga Densa (High Density)</span>;
+                            } else {
+                              cubedWeightColor = "text-indigo-600";
+                              cubedWeightAlert = <span className="text-[10px] text-indigo-500 font-bold block mt-0.5">Carga Volumosa (Low Density)</span>;
+                            }
                           }
 
                           return (
