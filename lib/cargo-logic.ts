@@ -24,7 +24,6 @@ export interface CargoInput {
   origin: string;
   destination: string;
   aircraft: AircraftType;
-  registration: string;
   flightDate?: string;
   aiReasoning?: string;
   clsInfo?: string;
@@ -64,7 +63,6 @@ export interface ManifestResult {
     code: string;
     route: string;
     aircraft: string;
-    registration: string;
     date: string;
   };
   status: 'OK' | 'ALERTA' | 'REJEITADO';
@@ -111,7 +109,6 @@ export function generateManifest(input: CargoInput): ManifestResult {
         code: input.flightCode || 'LA0000',
         route: `${(input.origin || 'XXX').toUpperCase()} - ${(input.destination || 'XXX').toUpperCase()}`,
         aircraft: input.aircraft,
-        registration: input.registration || 'N/A',
         date: input.flightDate || 'DD/MM/YYYY'
       },
       status: 'REJEITADO',
@@ -191,9 +188,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
       
       totalLooseWeight += p.weight;
 
-      // Cálculo do peso cubado (Fator de conversão padrão IATA: 167 kg/m³)
-      const volumeM3 = (p.length * p.width * p.height) / 1000000;
-      const cubedWeight = volumeM3 * 167;
+      // Cálculo do peso cubado (Fator de conversão: (C x L x A) / 6000)
+      const cubedWeight = (p.length * p.width * p.height) / 6000;
       totalLooseCubedWeight += cubedWeight;
       
       // Se for um único volume indivisível e for muito comprido, ele vai dar overlap físico inevitável
@@ -570,7 +566,6 @@ export function generateManifest(input: CargoInput): ManifestResult {
       code: input.flightCode || 'LA0000',
       route: `${(input.origin || 'XXX').toUpperCase()} - ${(input.destination || 'XXX').toUpperCase()}`,
       aircraft: input.aircraft,
-      registration: input.registration || 'N/A',
       date: input.flightDate || 'DD/MM/YYYY'
     },
     status,

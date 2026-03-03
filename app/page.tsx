@@ -19,7 +19,6 @@ export default function Home() {
     origin: '',
     destination: '',
     aircraft: 'A320',
-    registration: 'PR-MYX',
     pranchas: [
       {
         id: '1',
@@ -131,7 +130,7 @@ export default function Home() {
       
       const prompt = `ATUE COMO UM ESPECIALISTA SÊNIOR EM OPERAÇÕES AÉREAS E RASTREAMENTO DE VOOS (FLIGHT DISPATCHER).
       
-      Sua missão é descobrir a MATRÍCULA (Registration/Tail Number) EXATA e CONFIRMADA da aeronave para o voo ${input.flightCode} da LATAM Brasil para a data de ${searchDateStr}.
+      Sua missão é descobrir o MODELO EXATO E CONFIRMADO da aeronave para o voo ${input.flightCode} da LATAM Brasil para a data de ${searchDateStr}.
       
       Contexto Temporal Atual:
       - ISO DateTime: ${isoDateTime}
@@ -145,12 +144,9 @@ export default function Home() {
          - RadarBox
          - Site oficial da LATAM
       3. Se a data for FUTURA, procure pela aeronave ESCALADA (Scheduled). Se for PASSADA, procure a que REALMENTE OPEROU.
-      4. Verifique se a matrícula segue o padrão da LATAM Brasil (ex: PT-***, PR-***, PS-***).
       
       REGRAS DE SAÍDA:
       - Modelo: Identifique se é A319, A320, A321, B767, B787, B777. Mapeie para "A319", "A320", "A321" ou "OTHER".
-      - Matrícula: DEVE ser a real e confirmada (ex: PT-MXG, PR-MYX).
-      - SE NÃO TIVER CERTEZA ABSOLUTA OU NÃO ENCONTRAR DADOS CONFIRMADOS EM PELO MENOS DUAS FONTES, RETORNE "N/A" NO CAMPO REGISTRATION. NÃO ADIVINHE.
       - Origem/Destino: Use os códigos IATA reais (ex: GRU, MIA, LIS).
       - Data: A data do voo retornado (DD/MM/YYYY).
       - CLS (Cargo Loading System): Verifique e informe se a aeronave identificada possui o sistema de carregamento mecanizado (CLS) instalado nos compartimentos 1, 2, 3 e 4.
@@ -159,12 +155,11 @@ export default function Home() {
       \`\`\`json
       {
         "aircraft": "A321",
-        "registration": "PT-MXG",
         "origin": "GRU",
         "destination": "MIA",
         "date": "${searchDateStr}",
         "clsInfo": "Aeronave equipada com CLS nos compartimentos 1, 2, 3 e 4.",
-        "reasoning": "CROSS-CHECK REALIZADO: Encontrado no histórico do FlightRadar24 como aeronave escalada para ${searchDateStr}. Confirmado também no FlightAware. Matrícula PT-MXG confirmada."
+        "reasoning": "CROSS-CHECK REALIZADO: Encontrado no histórico do FlightRadar24 como aeronave escalada para ${searchDateStr}. Confirmado também no FlightAware."
       }
       \`\`\``;
 
@@ -205,7 +200,6 @@ export default function Home() {
       setInput(prev => ({
         ...prev,
         aircraft: aircraft as AircraftType,
-        registration: data.registration || 'N/A',
         origin: data.origin || prev.origin,
         destination: data.destination || prev.destination,
         aiReasoning: data.reasoning,
@@ -219,7 +213,6 @@ export default function Home() {
       setInput(prev => ({
         ...prev,
         aircraft: 'OTHER',
-        registration: 'N/A',
         origin: '',
         destination: ''
       }));
@@ -490,7 +483,7 @@ export default function Home() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-2">
+                  <div className="grid grid-cols-1 gap-3 pl-2">
                     <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-1">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo</p>
@@ -504,18 +497,6 @@ export default function Home() {
                       <span className={`text-2xl font-mono font-bold tracking-tight ${input.aircraft === 'OTHER' ? 'text-slate-400' : 'text-[#1b0088]'}`}>
                         {input.aircraft === 'OTHER' && flightError ? 'N/A' : input.aircraft}
                       </span>
-                    </div>
-                    
-                    <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col justify-between">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Matrícula</p>
-                      <input
-                        type="text"
-                        value={input.registration}
-                        onChange={(e) => setInput({ ...input, registration: e.target.value.toUpperCase() })}
-                        className={`text-2xl font-mono font-bold tracking-tight w-full bg-transparent outline-none focus:ring-0 p-0 border-none ${input.registration === 'N/A' || !input.registration ? 'text-slate-400' : 'text-[#1b0088]'}`}
-                        placeholder="PR-MYX"
-                        maxLength={6}
-                      />
                     </div>
                   </div>
 
@@ -669,12 +650,32 @@ export default function Home() {
                       </div>
                       <div className="text-right">
                         <span className="text-xs text-slate-500 block">Peso Cubado Total</span>
-                        <span className="text-lg font-bold text-indigo-600 font-mono">
-                          {Math.round(input.pranchas.reduce((acc, p) => {
-                            const volM3 = (p.length * p.width * p.height) / 1000000;
-                            return acc + (volM3 * 167);
-                          }, 0)).toLocaleString('pt-BR')} kg
-                        </span>
+                        {(() => {
+                          const totalCubedWeight = Math.round(input.pranchas.reduce((acc, p) => {
+                            return acc + ((p.length * p.width * p.height) / 6000);
+                          }, 0));
+                          const maxCubedWeight = input.pranchas.length * 600;
+                          const cubedWeightPercentage = totalCubedWeight / maxCubedWeight;
+                          let cubedWeightColor = "text-indigo-600";
+                          let cubedWeightAlert = null;
+
+                          if (cubedWeightPercentage >= 0.9) {
+                            cubedWeightColor = "text-red-600";
+                            cubedWeightAlert = <span className="text-[10px] text-red-600 font-bold block mt-0.5">⚠️ Limite Crítico (90%+)</span>;
+                          } else if (cubedWeightPercentage >= 0.8) {
+                            cubedWeightColor = "text-amber-500";
+                            cubedWeightAlert = <span className="text-[10px] text-amber-500 font-bold block mt-0.5">⚠️ Atenção (80%+)</span>;
+                          }
+
+                          return (
+                            <>
+                              <span className={`text-lg font-bold ${cubedWeightColor} font-mono`}>
+                                {totalCubedWeight.toLocaleString('pt-BR')} kg
+                              </span>
+                              {cubedWeightAlert}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -1087,7 +1088,7 @@ export default function Home() {
                 <div className="bg-[#1e293b]/50 rounded-lg p-4 border border-slate-700/50">
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">Voo / Rota / Aeronave</p>
                   <p className="text-lg font-mono font-bold text-slate-100">{manifest.flight_info.code} <span className="text-slate-600">|</span> {manifest.flight_info.route}</p>
-                  <p className="text-xs font-mono text-slate-400 mt-1">{manifest.flight_info.aircraft} ({manifest.flight_info.registration}) <span className="text-slate-600">|</span> <span className="text-emerald-400">{manifest.flight_info.date}</span></p>
+                  <p className="text-xs font-mono text-slate-400 mt-1">{manifest.flight_info.aircraft} <span className="text-slate-600">|</span> <span className="text-emerald-400">{manifest.flight_info.date}</span></p>
                   {manifest.clsInfo && (
                     <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-start gap-2">
                       <Info className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
