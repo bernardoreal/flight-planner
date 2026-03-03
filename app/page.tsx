@@ -916,25 +916,25 @@ export default function Home() {
                             className="w-full p-2.5 text-sm rounded-lg border border-red-200 focus:ring-2 focus:ring-red-500 outline-none transition-all bg-white"
                           >
                             <option value="">Selecione...</option>
-                            <option value="1">Class 1 - Explosives</option>
-                            <option value="2.1">Class 2.1 - Flammable Gas</option>
-                            <option value="2.2">Class 2.2 - Non-flammable Gas</option>
-                            <option value="2.3">Class 2.3 - Toxic Gas</option>
-                            <option value="3">Class 3 - Flammable Liquids</option>
-                            <option value="4.1">Class 4.1 - Flammable Solids</option>
-                            <option value="4.2">Class 4.2 - Spontaneously Combustible</option>
-                            <option value="4.3">Class 4.3 - Dangerous When Wet</option>
-                            <option value="5.1">Class 5.1 - Oxidizer</option>
-                            <option value="5.2">Class 5.2 - Organic Peroxide</option>
-                            <option value="6.1">Class 6.1 - Toxic</option>
-                            <option value="6.2">Class 6.2 - Infectious Substance</option>
-                            <option value="7">Class 7 - Radioactive</option>
-                            <option value="8">Class 8 - Corrosive</option>
-                            <option value="9">Class 9 - Miscellaneous</option>
+                            <option value="1">Classe 1 - Explosivos</option>
+                            <option value="2.1">Classe 2.1 - Gás Inflamável</option>
+                            <option value="2.2">Classe 2.2 - Gás Não Inflamável</option>
+                            <option value="2.3">Classe 2.3 - Gás Tóxico</option>
+                            <option value="3">Classe 3 - Líquidos Inflamáveis</option>
+                            <option value="4.1">Classe 4.1 - Sólidos Inflamáveis</option>
+                            <option value="4.2">Classe 4.2 - Combustão Espontânea</option>
+                            <option value="4.3">Classe 4.3 - Perigoso Quando Molhado</option>
+                            <option value="5.1">Classe 5.1 - Oxidante</option>
+                            <option value="5.2">Classe 5.2 - Peróxido Orgânico</option>
+                            <option value="6.1">Classe 6.1 - Tóxico</option>
+                            <option value="6.2">Classe 6.2 - Substância Infecciosa</option>
+                            <option value="7">Classe 7 - Radioativo</option>
+                            <option value="8">Classe 8 - Corrosivo</option>
+                            <option value="9">Classe 9 - Miscelânea</option>
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-red-800 uppercase tracking-wider mb-1.5">Packing Group</label>
+                          <label className="block text-xs font-semibold text-red-800 uppercase tracking-wider mb-1.5">Grupo de Embalagem</label>
                           <select
                             value={prancha.dgrPackingGroup || 'N/A'}
                             onChange={(e) => {
@@ -945,9 +945,9 @@ export default function Home() {
                             className="w-full p-2.5 text-sm rounded-lg border border-red-200 focus:ring-2 focus:ring-red-500 outline-none transition-all bg-white"
                           >
                             <option value="N/A">N/A</option>
-                            <option value="I">I (High Danger)</option>
-                            <option value="II">II (Medium Danger)</option>
-                            <option value="III">III (Low Danger)</option>
+                            <option value="I">I (Alto Perigo)</option>
+                            <option value="II">II (Médio Perigo)</option>
+                            <option value="III">III (Baixo Perigo)</option>
                           </select>
                         </div>
                       </div>
