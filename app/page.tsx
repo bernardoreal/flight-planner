@@ -406,7 +406,7 @@ export default function Home() {
         {/* Input Form */}
         <div className="lg:col-span-7 flex flex-col gap-4 content-start">
           <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 gap-8">
               {/* Left Column: Flight Parameters */}
               <div className="flex flex-col h-full">
                 <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
@@ -466,11 +466,6 @@ export default function Home() {
                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Aeronave Detectada</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {flightDate && (
-                        <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-sm">
-                          REF: {flightDate}
-                        </span>
-                      )}
                       {flightSource === 'realtime_grounding' && (
                         <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] px-2 py-1 rounded-md font-bold flex items-center gap-1.5 shadow-sm">
                           <span className="relative flex h-2 w-2">
@@ -506,41 +501,6 @@ export default function Home() {
                       <p><strong>Auditoria de Dados (Cross-Check):</strong> {input.aiReasoning}</p>
                     </div>
                   )}
-                </div>
-              </div>
-
-              {/* Right Column: Route and Product */}
-              <div className="flex flex-col h-full lg:border-l lg:border-slate-200 lg:pl-8">
-                <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
-                  <MapPin className="w-4 h-4 text-[#1b0088]" />
-                  Rota e Produto
-                </h2>
-
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Origem</label>
-                      <input
-                        type="text"
-                        value={input.origin}
-                        onChange={(e) => setInput({ ...input, origin: e.target.value.toUpperCase() })}
-                        maxLength={3}
-                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
-                        placeholder="Ex: GRU"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Destino</label>
-                      <input
-                        type="text"
-                        value={input.destination}
-                        onChange={(e) => setInput({ ...input, destination: e.target.value.toUpperCase() })}
-                        maxLength={3}
-                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
-                        placeholder="Ex: MIA"
-                      />
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
