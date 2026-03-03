@@ -48,7 +48,7 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
                  boxClass = 'bg-red-500/20 border-red-500 border-dashed text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
                  label = 'EXC';
                } else if (isUsed) {
-                 boxClass = 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]';
+                 boxClass = 'bg-emerald-500/20 border-emerald-500 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
                  label = 'CGO';
                }
 
@@ -87,7 +87,7 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
                  boxClass = 'bg-amber-500/20 border-amber-500 text-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.2)]';
                  label = 'BAG';
                } else if (isUsed) {
-                 boxClass = 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]';
+                 boxClass = 'bg-emerald-500/20 border-emerald-500 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
                  label = 'CGO';
                }
 
@@ -118,7 +118,7 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
                      boxClass = 'bg-red-500/20 border-red-500 border-dashed text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
                      label = 'EXC';
                    } else if (isUsed) {
-                     boxClass = 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]';
+                     boxClass = 'bg-emerald-500/20 border-emerald-500 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
                      label = 'CGO';
                    }
 
@@ -142,7 +142,7 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
       
       <div className="flex items-center justify-center gap-4 mt-4 pt-3 border-t border-white/10">
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-[#e3004a]/40 border border-[#e3004a]"></div>
+          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500/40 border border-emerald-500"></div>
           <span className="text-[9px] text-white/40 font-mono">Carga</span>
         </div>
         <div className="flex items-center gap-1.5">
