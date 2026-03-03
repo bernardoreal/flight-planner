@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera, RectangleHorizontal, X, ImagePlus } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { AircraftType, CargoInput, ManifestResult, generateManifest } from '@/lib/cargo-logic';
+import { AircraftType, CargoInput, ManifestResult, generateManifest, ULD_SPECS } from '@/lib/cargo-logic';
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
 
 // MODELO ESCOLHIDO: Gemini 3 Flash (Recomendado para tarefas de texto/busca)
@@ -587,9 +587,15 @@ export default function Home() {
                     className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all bg-white"
                   >
                     <option value="LOOSE">Carga Solta (Loose)</option>
-                    <option value="ULD_AKH">Contêiner (ULD) - AKH (A320 Family)</option>
-                    <option value="ULD_AKE">Contêiner (ULD) - AKE (Widebody)</option>
-                    <option value="ULD_PKC">Contêiner (ULD) - PKC (Pallet)</option>
+                    <optgroup label="ULDs (Contêineres/Pallets)">
+                      {Object.entries(ULD_SPECS)
+                        .filter(([key]) => key !== 'NONE')
+                        .map(([key, spec]) => (
+                          <option key={key} value={`ULD_${key}`}>
+                            {key} - {spec.description}
+                          </option>
+                        ))}
+                    </optgroup>
                   </select>
                 </div>
                 <div className="flex items-end gap-4 mb-4">
@@ -666,23 +672,12 @@ export default function Home() {
                             maxCubedWeight = input.pranchas.length * 600;
                           } else {
                             // ULD Fixed Volumetric Weights (Volume m3 * 166.67 kg/m3)
-                            const uldVolumetricWeights: Record<string, number> = {
-                              'AKH': 583, // ~3.5 m3
-                              'AKE': 716, // ~4.3 m3
-                              'PKC': 583, // ~3.5 m3
-                              'NONE': 0
-                            };
-                            const fixedWeight = uldVolumetricWeights[input.uldType] || 583;
+                            const spec = ULD_SPECS[input.uldType] || ULD_SPECS['AKH'];
+                            const fixedWeight = spec.maxCubed;
                             totalCubedWeight = input.pranchas.length * fixedWeight;
                             
                             // For ULDs, max cubed weight is the max gross weight of the ULDs
-                            const uldMaxGrossWeights: Record<string, number> = {
-                              'AKH': 1134,
-                              'AKE': 1588,
-                              'PKC': 1500,
-                              'NONE': 1134
-                            };
-                            maxCubedWeight = input.pranchas.length * (uldMaxGrossWeights[input.uldType] || 1134);
+                            maxCubedWeight = input.pranchas.length * spec.maxWeight;
                           }
 
                           const cubedWeightPercentage = totalCubedWeight / maxCubedWeight;

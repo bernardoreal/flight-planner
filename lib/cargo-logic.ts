@@ -34,9 +34,24 @@ export interface CargoInput {
   isWET: boolean;
   isHUM: boolean;
   cargoType: 'LOOSE' | 'ULD';
-  uldType: 'AKH' | 'AKE' | 'PKC' | 'NONE';
+  uldType: 'AKH' | 'AKE' | 'PKC' | 'PMC' | 'PQA' | 'PAG' | 'P1G' | 'RKN' | 'PLA' | 'KQA' | 'HMA' | 'NONE';
   dgrTypes: string[]; // 'ICE', 'AVI', 'LITHIUM_BULK', 'LITHIUM_EQUIP', 'FLAM', 'EXPLOSIVE', 'GAS', 'TOXIC', 'RADIOACTIVE'
 }
+
+export const ULD_SPECS: Record<string, { tare: number, maxWeight: number, maxCubed: number, description: string }> = {
+  'AKH': { tare: 85, maxWeight: 1134, maxCubed: 583, description: 'LD3-45 Container (A320 Fam)' },
+  'AKE': { tare: 75, maxWeight: 1588, maxCubed: 716, description: 'LD3 Container' },
+  'PKC': { tare: 120, maxWeight: 1500, maxCubed: 583, description: 'LD3-45W Pallet' },
+  'PMC': { tare: 120, maxWeight: 5035, maxCubed: 1900, description: 'LD7 Pallet (96x125)' },
+  'PQA': { tare: 120, maxWeight: 5035, maxCubed: 1900, description: 'LD7 Pallet (PQA)' },
+  'PAG': { tare: 110, maxWeight: 4626, maxCubed: 1700, description: 'LD7 Pallet (88x125)' },
+  'P1G': { tare: 110, maxWeight: 4626, maxCubed: 1700, description: 'LD7 Pallet (Specific)' },
+  'RKN': { tare: 250, maxWeight: 1588, maxCubed: 400, description: 'LD3 Cooltainer' },
+  'PLA': { tare: 180, maxWeight: 3175, maxCubed: 1100, description: 'LD11 Pallet' },
+  'KQA': { tare: 100, maxWeight: 1134, maxCubed: 583, description: 'Special Container' },
+  'HMA': { tare: 550, maxWeight: 1134, maxCubed: 500, description: 'Horse Stall' },
+  'NONE': { tare: 0, maxWeight: 0, maxCubed: 0, description: 'N/A' }
+};
 
 export interface CalculationBreakdown {
   totalRealWeight: number;
@@ -150,43 +165,33 @@ export function generateManifest(input: CargoInput): ManifestResult {
   
   // Rule 1: Barrow/Container Limit or ULD Limit
   if (input.cargoType === 'ULD') {
-    let uldTare = 0;
-    let uldMaxWeight = 0;
-    let uldMaxCubedWeight = 0;
+    const spec = ULD_SPECS[input.uldType] || ULD_SPECS['AKH'];
+    const uldTare = spec.tare;
+    const uldMaxWeight = spec.maxWeight;
+    const uldMaxCubedWeight = spec.maxCubed;
     
-    if (input.uldType === 'AKH') {
-      uldTare = 85;
-      uldMaxWeight = 1134;
-      uldMaxCubedWeight = 583; // ~3.5m3 * 166.67
-    } else if (input.uldType === 'AKE') {
-      uldTare = 75;
-      uldMaxWeight = 1588;
-      uldMaxCubedWeight = 716; // ~4.3m3 * 166.67
-      if (input.aircraft === 'A319' || input.aircraft === 'A320' || input.aircraft === 'A321') {
-        warnings.push('CRÍTICO: AKE não é compatível com o sistema de carregamento (Cargo Loading System) da família A320. Use AKH.');
-        status = 'REJEITADO';
-      }
-    } else if (input.uldType === 'PKC') {
-      uldTare = 120;
-      uldMaxWeight = 1500;
-      uldMaxCubedWeight = 583; // ~3.5m3 * 166.67
-    } else {
-      uldTare = 85; // Default to AKH
-      uldMaxWeight = 1134;
-      uldMaxCubedWeight = 583;
+    // Compatibility Checks
+    if (input.uldType === 'AKE' && (input.aircraft === 'A319' || input.aircraft === 'A320' || input.aircraft === 'A321')) {
+       warnings.push('CRÍTICO: AKE (LD3) não é compatível com o sistema de carregamento (CLS) da família A320 (Narrow Body). Use AKH (LD3-45).');
+       status = 'REJEITADO';
     }
     
+    if (['PMC', 'PQA', 'PAG', 'P1G', 'PLA'].includes(input.uldType) && (input.aircraft === 'A319' || input.aircraft === 'A320' || input.aircraft === 'A321')) {
+       warnings.push(`AVISO: ${input.uldType} é um pallet de grande porte (LD7/LD11). Verificar se a aeronave possui configuração de porão para pallets (PKC/Palletized).`);
+       if (status !== 'REJEITADO') status = 'ALERTA';
+    }
+
     let totalCubedWeight = 0;
     input.pranchas.forEach((p) => {
       totalCubedWeight += (p.length * p.width * p.height) / 6000;
     });
     
     // Capacidade líquida de peso do ULD (descontando a tara)
-    const netUldWeightCapacity = uldMaxWeight - uldTare;
+    const netUldWeightCapacity = Math.max(1, uldMaxWeight - uldTare);
     
     // Cálculo de posições baseado nos limites específicos do ULD selecionado
     const weightPos = Math.ceil(totalWeight / netUldWeightCapacity);
-    const cubedPos = Math.ceil(totalCubedWeight / uldMaxCubedWeight);
+    const cubedPos = Math.ceil(totalCubedWeight / Math.max(1, uldMaxCubedWeight));
     
     posicoes = Math.max(weightPos, cubedPos, input.pranchas.length > 0 ? 1 : 0);
     
