@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera, RectangleHorizontal, X, ImagePlus } from 'lucide-react';
+import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera, RectangleHorizontal, X, ImagePlus, ChevronDown, ChevronUp } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { AircraftType, CargoInput, ManifestResult, generateManifest, ULD_SPECS } from '@/lib/cargo-logic';
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
@@ -54,6 +54,11 @@ export default function Home() {
   const [selectedSearchDate, setSelectedSearchDate] = useState<string>('');
   const [isAnalyzingImage, setIsAnalyzingImage] = useState<number | null>(null);
   const [pranchaImages, setPranchaImages] = useState<Record<string, { file: File, preview: string }[]>>({});
+  const [expandedPranchaIndex, setExpandedPranchaIndex] = useState<number>(0);
+
+  const togglePrancha = (index: number) => {
+    setExpandedPranchaIndex(expandedPranchaIndex === index ? -1 : index);
+  };
 
   // Initialize date on client-side to avoid hydration mismatch
   useEffect(() => {
@@ -589,6 +594,7 @@ export default function Home() {
                               oversizeWeight: 0
                             });
                           }
+                          setExpandedPranchaIndex(count - 1);
                         } else if (count < currentPranchas.length) {
                           // Remove excess
                           currentPranchas.splice(count);
@@ -680,18 +686,57 @@ export default function Home() {
               </div>
 
             <div className="space-y-4">
-              {input.pranchas.map((prancha, index) => (
-                <div key={prancha.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 relative">
-                    <div className="flex justify-between items-center mb-4">
+              {input.pranchas.map((prancha, index) => {
+                const isExpanded = index === expandedPranchaIndex;
+                return (
+                <div key={prancha.id} className={`border border-slate-200 rounded-xl bg-slate-50 relative overflow-hidden transition-all ${isExpanded ? 'shadow-md ring-1 ring-indigo-100' : 'hover:bg-slate-100'}`}>
+                    <div 
+                      className="flex justify-between items-center p-4 cursor-pointer select-none"
+                      onClick={() => togglePrancha(index)}
+                    >
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
-                        <RectangleHorizontal className="w-4 h-4 text-[#1b0088]" />
-                        <h3 className="text-sm font-bold text-slate-700">
+                        <RectangleHorizontal className={`w-4 h-4 ${isExpanded ? 'text-[#1b0088]' : 'text-slate-400'}`} />
+                        <h3 className={`text-sm font-bold ${isExpanded ? 'text-slate-800' : 'text-slate-600'}`}>
                           {input.cargoType === 'LOOSE' ? 'Pallet' : 'ULD'} {index + 1}
                         </h3>
+                        {!isExpanded && (
+                          <span className="text-xs text-slate-400 font-mono ml-2 border-l border-slate-300 pl-2">
+                            {prancha.weight}kg | {prancha.volumes} vol
+                          </span>
+                        )}
+                        
+                        {/* Special Cargo Badges */}
+                        {prancha.specialCargoType && prancha.specialCargoType !== 'NONE' && (
+                          <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            prancha.specialCargoType === 'ICE' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                            prancha.specialCargoType === 'DGR' ? 'bg-red-100 text-red-700 border border-red-200' :
+                            prancha.specialCargoType === 'AVI' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                            prancha.specialCargoType === 'ELI' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
+                            prancha.specialCargoType === 'WET' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' :
+                            prancha.specialCargoType === 'PER' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                            prancha.specialCargoType === 'HUM' ? 'bg-slate-200 text-slate-700 border border-slate-300' :
+                            prancha.specialCargoType === 'VAL' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
+                            'bg-slate-100 text-slate-700 border border-slate-200'
+                          }`}>
+                            {prancha.specialCargoType}
+                          </span>
+                        )}
+                        
+                        {/* Oversize Badge */}
+                        {prancha.hasOversize && (
+                           <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
+                             OVERSIZE
+                           </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-md cursor-pointer hover:bg-indigo-200 transition-colors text-xs font-semibold">
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(isExpanded || (pranchaImages[prancha.id] && pranchaImages[prancha.id].length > 0)) && (
+                        <label 
+                          className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-md cursor-pointer hover:bg-indigo-200 transition-colors text-xs font-semibold"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <ImagePlus className="w-3.5 h-3.5" />
                           <span className="hidden sm:inline">Adicionar Foto</span>
                           <input 
@@ -703,10 +748,19 @@ export default function Home() {
                             disabled={isAnalyzingImage !== null}
                           />
                         </label>
-                      </div>
+                      )}
+                      {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                     </div>
 
                   </div>
+
+                  <motion.div
+                    initial={false}
+                    animate={{ height: isExpanded ? 'auto' : 0, opacity: isExpanded ? 1 : 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="p-4 pt-0 border-t border-slate-100">
 
                   {pranchaImages[prancha.id] && pranchaImages[prancha.id].length > 0 && (
                     <div className="mb-4 bg-white p-3 rounded-lg border border-slate-200">
@@ -1055,8 +1109,11 @@ export default function Home() {
                       </motion.div>
                     )}
                   </div>
+                    </div>
+                  </motion.div>
                 </div>
-              ))}
+              );
+            })}
               
 
             </div>
