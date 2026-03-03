@@ -37,18 +37,27 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
 
           {/* FWD */}
           <div className="flex gap-1">
-            {Array.from({ length: config.fwd }).map((_, i) => {
+            {Array.from({ length: Math.max(config.fwd, allocation.fwd) }).map((_, i) => {
                const isUsed = i < allocation.fwd;
+               const isOver = i >= config.fwd;
+               
+               let boxClass = 'bg-slate-800/80 border-slate-600 text-slate-500';
+               let label = 'LIV';
+               
+               if (isOver) {
+                 boxClass = 'bg-red-500/20 border-red-500 border-dashed text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
+                 label = 'EXC';
+               } else if (isUsed) {
+                 boxClass = 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]';
+                 label = 'CGO';
+               }
+
                return (
                 <div 
                   key={`fwd-${i}`} 
-                  className={`h-8 w-6 sm:h-10 sm:w-8 rounded-sm border flex items-center justify-center text-[8px] font-bold transition-all ${
-                    isUsed 
-                      ? 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]' 
-                      : 'bg-slate-800/80 border-slate-600 text-slate-500'
-                  }`}
+                  className={`h-8 w-6 sm:h-10 sm:w-8 rounded-sm border flex items-center justify-center text-[8px] font-bold transition-all ${boxClass}`}
                 >
-                  {isUsed ? 'CGO' : 'LIV'}
+                  {label}
                 </div>
                );
             })}
@@ -63,14 +72,18 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
           
           {/* AFT */}
           <div className="flex gap-1">
-            {Array.from({ length: config.aft }).map((_, i) => {
-               const isBag = i >= config.aft - config.bags;
-               const isUsed = !isBag && i < allocation.aft;
+            {Array.from({ length: Math.max(config.aft, allocation.aft + config.bags) }).map((_, i) => {
+               const isBag = i >= config.aft - config.bags && i < config.aft;
+               const isUsed = !isBag && i < allocation.aft + (i >= config.aft ? config.bags : 0);
+               const isOver = i >= config.aft;
                
                let boxClass = 'bg-slate-800/80 border-slate-600 text-slate-500';
                let label = 'LIV';
                
-               if (isBag) {
+               if (isOver) {
+                 boxClass = 'bg-red-500/20 border-red-500 border-dashed text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
+                 label = 'EXC';
+               } else if (isBag) {
                  boxClass = 'bg-amber-500/20 border-amber-500 text-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.2)]';
                  label = 'BAG';
                } else if (isUsed) {
@@ -94,18 +107,27 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
             <>
               <div className="w-px h-8 border-l border-slate-700/50 border-dashed mx-1"></div>
               <div className="flex gap-1">
-                {Array.from({ length: config.bulk }).map((_, i) => {
+                {Array.from({ length: Math.max(config.bulk, allocation.bulk) }).map((_, i) => {
                    const isUsed = i < allocation.bulk;
+                   const isOver = i >= config.bulk;
+                   
+                   let boxClass = 'bg-slate-800/80 border-slate-600 text-slate-500';
+                   let label = 'LIV';
+                   
+                   if (isOver) {
+                     boxClass = 'bg-red-500/20 border-red-500 border-dashed text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
+                     label = 'EXC';
+                   } else if (isUsed) {
+                     boxClass = 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]';
+                     label = 'CGO';
+                   }
+
                    return (
                     <div 
                       key={`bulk-${i}`} 
-                      className={`h-8 w-6 sm:h-10 sm:w-8 rounded-sm border flex items-center justify-center text-[8px] font-bold transition-all ${
-                        isUsed 
-                          ? 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]' 
-                          : 'bg-slate-800/80 border-slate-600 text-slate-500'
-                      }`}
+                      className={`h-8 w-6 sm:h-10 sm:w-8 rounded-sm border flex items-center justify-center text-[8px] font-bold transition-all ${boxClass}`}
                     >
-                      {isUsed ? 'CGO' : 'LIV'}
+                      {label}
                     </div>
                    );
                 })}
@@ -126,6 +148,10 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/40 border border-amber-500"></div>
           <span className="text-[9px] text-white/40 font-mono">Bagagem</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm bg-red-500/40 border border-red-500 border-dashed"></div>
+          <span className="text-[9px] text-white/40 font-mono">Excesso</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-white/5 border border-white/10"></div>

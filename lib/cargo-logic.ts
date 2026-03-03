@@ -152,13 +152,16 @@ export function generateManifest(input: CargoInput): ManifestResult {
   if (input.cargoType === 'ULD') {
     let uldTare = 0;
     let uldMaxWeight = 0;
+    let uldMaxCubedWeight = 0;
     
     if (input.uldType === 'AKH') {
       uldTare = 85;
       uldMaxWeight = 1134;
+      uldMaxCubedWeight = 583; // ~3.5m3 * 166.67
     } else if (input.uldType === 'AKE') {
       uldTare = 75;
       uldMaxWeight = 1588;
+      uldMaxCubedWeight = 716; // ~4.3m3 * 166.67
       if (input.aircraft === 'A319' || input.aircraft === 'A320' || input.aircraft === 'A321') {
         warnings.push('CRÍTICO: AKE não é compatível com o sistema de carregamento (Cargo Loading System) da família A320. Use AKH.');
         status = 'REJEITADO';
@@ -166,13 +169,27 @@ export function generateManifest(input: CargoInput): ManifestResult {
     } else if (input.uldType === 'PKC') {
       uldTare = 120;
       uldMaxWeight = 1500;
+      uldMaxCubedWeight = 583; // ~3.5m3 * 166.67
     } else {
       uldTare = 85; // Default to AKH
       uldMaxWeight = 1134;
+      uldMaxCubedWeight = 583;
     }
     
-    const weightPos = Math.ceil((totalWeight + uldTare) / uldMaxWeight);
-    posicoes = Math.max(weightPos, input.pranchas.length); // Assuming 1 ULD = 1 prancha entry
+    let totalCubedWeight = 0;
+    input.pranchas.forEach((p) => {
+      totalCubedWeight += (p.length * p.width * p.height) / 6000;
+    });
+    
+    // Capacidade líquida de peso do ULD (descontando a tara)
+    const netUldWeightCapacity = uldMaxWeight - uldTare;
+    
+    // Cálculo de posições baseado nos limites específicos do ULD selecionado
+    const weightPos = Math.ceil(totalWeight / netUldWeightCapacity);
+    const cubedPos = Math.ceil(totalCubedWeight / uldMaxCubedWeight);
+    
+    posicoes = Math.max(weightPos, cubedPos, input.pranchas.length > 0 ? 1 : 0);
+    
     if (posicoes > config.uldMax) {
       warnings.push(`CRÍTICO: Limite de ULDs excedido para ${input.aircraft} (Max: ${config.uldMax} ${input.uldType}).`);
       status = 'REJEITADO';
@@ -487,11 +504,12 @@ export function generateManifest(input: CargoInput): ManifestResult {
   if (input.cargoType === 'LOOSE' && posicoes > config.cargoMax) {
     warnings.push(`CRÍTICO: Capacidade máxima de posições de carga solta excedida (Allotment Padrão: ${config.cargoMax} pos). Necessário: ${posicoes} pos.`);
     status = 'REJEITADO';
-  } else {
-    const fwdCargoMax = config.fwdMax;
-    const aftCargoMax = config.aftMax - config.bagsPos;
+  }
+  
+  const fwdCargoMax = config.fwdMax;
+  const aftCargoMax = config.aftMax - config.bagsPos;
 
-    if (input.aircraft === 'A321') {
+  if (input.aircraft === 'A321') {
       // SAFETY PRIORITY: For A321, prioritize FWD (Hold 1) loading to prevent "Tip-over".
       fwd = Math.min(posicoes, fwdCargoMax);
       aft = posicoes - fwd;
@@ -536,7 +554,6 @@ export function generateManifest(input: CargoInput): ManifestResult {
         fuel_penalty = 'Média (Ideal para cruzeiro padrão).';
       }
     }
-  }
 
   // 6. ESG / Fuel Efficiency / CO2
   // Rough estimate: 0.15 kg of CO2 per kg of cargo for a standard 2h flight.
@@ -567,13 +584,6 @@ export function generateManifest(input: CargoInput): ManifestResult {
         dov_alert = `AVISO DOV: Possibilidade de corte. Solicitando ${totalRequestedPos} de ${config.totalPos} posições totais (${Math.round(usagePercent * 100)}%). A aprovação final depende da equipe do DOV, considerando o peso/volume de bagagens e combustível.`;
       }
     }
-  }
-
-  if (status === 'REJEITADO') {
-    posicoes = 0;
-    fwd = 0;
-    aft = 0;
-    bulk = 0;
   }
 
   return {
