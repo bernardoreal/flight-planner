@@ -93,10 +93,10 @@ export interface ManifestResult {
 }
 
 const FLEET_CONFIG = {
-  'A319': { totalPos: 4, bagsPos: 2, cargoMax: 2, iceLimit: 120, hasBulk: false, uldMax: 0, doorDims: { w: 181, h: 124 } },
-  'A320': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7, doorDims: { w: 181, h: 124 } },
-  'A321': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10, doorDims: { w: 181, h: 124 } },
-  'OTHER': { totalPos: 0, bagsPos: 0, cargoMax: 0, iceLimit: 0, hasBulk: false, uldMax: 0, doorDims: { w: 0, h: 0 } }
+  'A319': { totalPos: 4, bagsPos: 2, cargoMax: 2, iceLimit: 120, hasBulk: false, uldMax: 0, doorDims: { w: 181, h: 124 }, fwdMax: 2, aftMax: 2 },
+  'A320': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7, doorDims: { w: 181, h: 124 }, fwdMax: 3, aftMax: 4 },
+  'A321': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10, doorDims: { w: 181, h: 124 }, fwdMax: 5, aftMax: 5 },
+  'OTHER': { totalPos: 0, bagsPos: 0, cargoMax: 0, iceLimit: 0, hasBulk: false, uldMax: 0, doorDims: { w: 0, h: 0 }, fwdMax: 0, aftMax: 0 }
 };
 
 export function generateManifest(input: CargoInput): ManifestResult {
@@ -488,9 +488,13 @@ export function generateManifest(input: CargoInput): ManifestResult {
     warnings.push(`CRÍTICO: Capacidade máxima de posições de carga solta excedida (Allotment Padrão: ${config.cargoMax} pos). Necessário: ${posicoes} pos.`);
     status = 'REJEITADO';
   } else {
+    const fwdCargoMax = config.fwdMax;
+    const aftCargoMax = config.aftMax - config.bagsPos;
+
     if (input.aircraft === 'A321') {
       // SAFETY PRIORITY: For A321, prioritize FWD (Hold 1) loading to prevent "Tip-over".
-      fwd = posicoes;
+      fwd = Math.min(posicoes, fwdCargoMax);
+      aft = posicoes - fwd;
       stability = 'OK (Prioridade FWD aplicada)';
       cg_impact = 'Tendência FWD (Prevenção de Tail Tipping ativa).';
       fuel_penalty = 'Alta (CG FWD aumenta arrasto de compensação do profundor).';
@@ -501,22 +505,33 @@ export function generateManifest(input: CargoInput): ManifestResult {
       }
     } else {
       if (input.isWET) {
-        aft = posicoes;
+        aft = Math.min(posicoes, aftCargoMax);
+        fwd = posicoes - aft;
         warnings.push('INFO: WET CARGO alocado no AFT por prioridade de proteção de ativos.');
         cg_impact = 'Tendência AFT (Restrição WET).';
         fuel_penalty = 'Baixa (CG AFT reduz arrasto de compensação).';
       } else if (hasAvi && config.hasBulk) {
         bulk = 1;
-        posicoes = Math.max(0, posicoes - 1);
-        fwd = Math.ceil(posicoes / 2);
-        aft = posicoes - fwd;
+        const remainingPos = Math.max(0, posicoes - 1);
+        fwd = Math.min(Math.ceil(remainingPos / 2), fwdCargoMax);
+        aft = remainingPos - fwd;
+        if (aft > aftCargoMax) {
+          const excess = aft - aftCargoMax;
+          aft = aftCargoMax;
+          fwd += excess;
+        }
         dgr_alerts.push('INFO (DGR): AVI alocado obrigatoriamente no porão BULK (Hold 5) para controle de temperatura/ventilação.');
         cg_impact = 'Balanceado com leve tendência AFT (Bulk ocupado).';
         fuel_penalty = 'Média/Baixa.';
       } else {
         // Default allocation
-        fwd = Math.ceil(posicoes / 2);
+        fwd = Math.min(Math.ceil(posicoes / 2), fwdCargoMax);
         aft = posicoes - fwd;
+        if (aft > aftCargoMax) {
+          const excess = aft - aftCargoMax;
+          aft = aftCargoMax;
+          fwd += excess;
+        }
         cg_impact = 'Balanceado (Distribuição FWD/AFT simétrica).';
         fuel_penalty = 'Média (Ideal para cruzeiro padrão).';
       }

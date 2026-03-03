@@ -9,39 +9,10 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
   if (aircraft === 'OTHER' || !aircraft) return null;
 
   const config = {
-    'A319': { fwd: 2, aft: 2, bulk: 0 },
-    'A320': { fwd: 3, aft: 4, bulk: 1 },
-    'A321': { fwd: 5, aft: 5, bulk: 1 },
-  }[aircraft] || { fwd: 0, aft: 0, bulk: 0 };
-
-  const renderPositions = (total: number, used: number, label: string) => {
-    const positions = [];
-    for (let i = 0; i < total; i++) {
-      const isUsed = i < used;
-      const isOverallocated = used > total && i === total - 1; // Highlight if somehow overallocated (though logic prevents this, good for safety)
-      
-      positions.push(
-        <div 
-          key={i} 
-          className={`h-10 w-8 rounded-sm border flex items-center justify-center text-[9px] font-bold transition-all ${
-            isUsed 
-              ? 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]' 
-              : 'bg-slate-800/80 border-slate-600 text-slate-500'
-          }`}
-        >
-          {isUsed ? 'CGO' : 'LIV'}
-        </div>
-      );
-    }
-    return (
-      <div className="flex flex-col items-center gap-2">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</span>
-        <div className="flex gap-1">
-          {positions}
-        </div>
-      </div>
-    );
-  };
+    'A319': { fwd: 2, aft: 2, bulk: 0, bags: 2 },
+    'A320': { fwd: 3, aft: 4, bulk: 1, bags: 3 },
+    'A321': { fwd: 5, aft: 5, bulk: 1, bags: 3 },
+  }[aircraft] || { fwd: 0, aft: 0, bulk: 0, bags: 0 };
 
   return (
     <div className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10 mb-6 overflow-hidden">
@@ -93,17 +64,26 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
           {/* AFT */}
           <div className="flex gap-1">
             {Array.from({ length: config.aft }).map((_, i) => {
-               const isUsed = i < allocation.aft;
+               const isBag = i >= config.aft - config.bags;
+               const isUsed = !isBag && i < allocation.aft;
+               
+               let boxClass = 'bg-slate-800/80 border-slate-600 text-slate-500';
+               let label = 'LIV';
+               
+               if (isBag) {
+                 boxClass = 'bg-amber-500/20 border-amber-500 text-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.2)]';
+                 label = 'BAG';
+               } else if (isUsed) {
+                 boxClass = 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]';
+                 label = 'CGO';
+               }
+
                return (
                 <div 
                   key={`aft-${i}`} 
-                  className={`h-8 w-6 sm:h-10 sm:w-8 rounded-sm border flex items-center justify-center text-[8px] font-bold transition-all ${
-                    isUsed 
-                      ? 'bg-[#e3004a]/20 border-[#e3004a] text-[#e3004a] shadow-[0_0_10px_rgba(227,0,74,0.2)]' 
-                      : 'bg-slate-800/80 border-slate-600 text-slate-500'
-                  }`}
+                  className={`h-8 w-6 sm:h-10 sm:w-8 rounded-sm border flex items-center justify-center text-[8px] font-bold transition-all ${boxClass}`}
                 >
-                  {isUsed ? 'CGO' : 'LIV'}
+                  {label}
                 </div>
                );
             })}
@@ -141,7 +121,11 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
       <div className="flex items-center justify-center gap-4 mt-4 pt-3 border-t border-white/10">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-[#e3004a]/40 border border-[#e3004a]"></div>
-          <span className="text-[9px] text-white/40 font-mono">Ocupado</span>
+          <span className="text-[9px] text-white/40 font-mono">Carga</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/40 border border-amber-500"></div>
+          <span className="text-[9px] text-white/40 font-mono">Bagagem</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-white/5 border border-white/10"></div>
