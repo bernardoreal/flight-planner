@@ -563,8 +563,8 @@ export default function Home() {
                     </optgroup>
                   </select>
                 </div>
-                <div className="flex items-end gap-4 mb-4">
-                  <div className="flex-1">
+
+                <div className="mb-4">
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                       {input.cargoType === 'LOOSE' ? 'Quantidade de Pallets' : 'Quantidade de ULDs'}
                     </label>
@@ -603,8 +603,9 @@ export default function Home() {
                       }}
                       className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-white"
                     />
-                  </div>
-                  <div className="flex-1 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                </div>
+
+                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-4">
                     <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">
                       Resumo da Carga ({input.cargoType === 'LOOSE' ? 'Pallets' : 'ULDs'})
                     </p>
@@ -682,7 +683,6 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                </div>
               </div>
 
             <div className="space-y-4">

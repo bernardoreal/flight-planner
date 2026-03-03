@@ -123,15 +123,19 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
                      const isUsed = i < allocation.bulk;
                      const isOver = i >= config.bulk;
                      
-                     let boxClass = 'bg-slate-800/80 border-slate-600 text-slate-500';
+                     let boxClass = 'bg-slate-800/80 border-indigo-500/30 text-slate-500';
                      let label = 'LIV';
                      
                      if (isOver) {
                        boxClass = 'bg-red-500/20 border-red-500 border-dashed text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
                        label = 'EXC';
                      } else if (isUsed) {
-                       boxClass = 'bg-emerald-500/20 border-emerald-500 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
-                       label = 'CGO';
+                       boxClass = 'bg-indigo-500/20 border-indigo-500 text-white shadow-[0_0_10px_rgba(99,102,241,0.2)]';
+                       label = 'BLK';
+                     } else {
+                       // Empty Bulk Position - Distinct border to identify it's BULK
+                       boxClass = 'bg-slate-800/80 border-indigo-500/50 text-white/40';
+                       label = 'BLK';
                      }
 
                      return (
@@ -151,7 +155,7 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
         </div>
       </div>
       
-      <div className="flex items-center justify-center gap-4 mt-4 pt-3 border-t border-white/10">
+      <div className="flex flex-wrap items-center justify-center gap-4 mt-4 pt-3 border-t border-white/10 px-4">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500/40 border border-emerald-500"></div>
           <span className="text-[9px] text-white/40 font-mono">Carga</span>
@@ -159,6 +163,10 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/40 border border-amber-500"></div>
           <span className="text-[9px] text-white/40 font-mono">Bagagem</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm bg-indigo-500/40 border border-indigo-500"></div>
+          <span className="text-[9px] text-white/40 font-mono">Bulk</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-red-500/40 border border-red-500 border-dashed"></div>
