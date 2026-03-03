@@ -49,6 +49,16 @@ export interface CalculationBreakdown {
   limitingFactor: 'WEIGHT' | 'CUBAGE' | 'OVERSIZE' | 'MINIMUM';
 }
 
+export interface DoorCheck {
+  pranchaId: string;
+  pranchaIndex: number;
+  passed: boolean;
+  pieceDims: [number, number, number]; // L, W, H
+  sortedDims: [number, number, number]; // Smallest to Largest
+  doorDims: { w: number, h: number };
+  message: string;
+}
+
 export interface ManifestResult {
   flight_info: {
     code: string;
@@ -64,6 +74,7 @@ export interface ManifestResult {
   fuel_penalty: string;
   warnings: string[];
   dgr_alerts: string[];
+  door_checks: DoorCheck[];
   cg_impact: string;
   cubage_alert: boolean;
   validation_code: string;
@@ -84,10 +95,10 @@ export interface ManifestResult {
 }
 
 const FLEET_CONFIG = {
-  'A319': { totalPos: 4, bagsPos: 2, cargoMax: 2, iceLimit: 120, hasBulk: false, uldMax: 0 },
-  'A320': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7 },
-  'A321': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10 },
-  'OTHER': { totalPos: 0, bagsPos: 0, cargoMax: 0, iceLimit: 0, hasBulk: false, uldMax: 0 }
+  'A319': { totalPos: 4, bagsPos: 2, cargoMax: 2, iceLimit: 120, hasBulk: false, uldMax: 0, doorDims: { w: 181, h: 124 } },
+  'A320': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7, doorDims: { w: 181, h: 124 } },
+  'A321': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10, doorDims: { w: 181, h: 124 } },
+  'OTHER': { totalPos: 0, bagsPos: 0, cargoMax: 0, iceLimit: 0, hasBulk: false, uldMax: 0, doorDims: { w: 0, h: 0 } }
 };
 
 export function generateManifest(input: CargoInput): ManifestResult {
@@ -110,6 +121,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
       fuel_penalty: 'N/A',
       warnings: ['CRÍTICO: Aeronave não homologada para este sistema.'],
       dgr_alerts: [],
+      door_checks: [],
       cg_impact: 'N/A',
       cubage_alert: false,
       validation_code,
@@ -134,6 +146,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
   let status: 'OK' | 'ALERTA' | 'REJEITADO' = 'OK';
   const warnings: string[] = [];
   const dgr_alerts: string[] = [];
+  const door_checks: DoorCheck[] = [];
   
   const totalWeight = input.pranchas.reduce((sum, p) => sum + p.weight, 0);
   const totalVolumes = input.pranchas.reduce((sum, p) => sum + p.volumes, 0);
@@ -216,6 +229,34 @@ export function generateManifest(input: CargoInput): ManifestResult {
       if (p.length > 220) {
         warnings.push(`AVISO (Prancha ${pranchaNum}): Comprimento > 220cm. Requer amarração especial.`);
         if (status !== 'REJEITADO') status = 'ALERTA';
+      }
+
+      // Door Dimension Check (Tipping Check)
+      // Sort dimensions to find the smallest two (which must pass through the door)
+      const dims = [p.length, p.width, p.height].sort((a, b) => a - b);
+      const minDim = dims[0];
+      const midDim = dims[1];
+      
+      // Check against door dimensions (considering rotation)
+      // Door is W x H. Cargo must fit either W x H or H x W.
+      // Usually, minDim must be < DoorHeight and midDim < DoorWidth
+      // OR minDim < DoorWidth and midDim < DoorHeight
+      const fitsDoor = (minDim < config.doorDims.h && midDim < config.doorDims.w) || 
+                       (minDim < config.doorDims.w && midDim < config.doorDims.h);
+
+      door_checks.push({
+        pranchaId: p.id,
+        pranchaIndex: pranchaNum,
+        passed: fitsDoor,
+        pieceDims: [p.length, p.width, p.height],
+        sortedDims: [minDim, midDim, dims[2]],
+        doorDims: config.doorDims,
+        message: fitsDoor ? 'OK' : `Dimensões excedem a porta (${config.doorDims.w}x${config.doorDims.h}cm)`
+      });
+
+      if (!fitsDoor && input.aircraft !== 'OTHER') {
+         warnings.push(`CRÍTICO (Prancha ${pranchaNum}): Dimensões excedem a porta de carga (${config.doorDims.w}x${config.doorDims.h}cm). Risco de não embarque.`);
+         status = 'REJEITADO';
       }
       
       // Floor load calculation (kg/m² and kg/inch)
@@ -539,6 +580,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
     fuel_penalty,
     warnings,
     dgr_alerts,
+    door_checks,
     cg_impact,
     cubage_alert,
     validation_code,

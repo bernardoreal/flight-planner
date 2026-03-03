@@ -1103,6 +1103,47 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Door Check Section */}
+              {manifest.door_checks && manifest.door_checks.length > 0 && (
+                <div className="mb-6 bg-[#1e293b]/50 rounded-lg p-4 border border-slate-700/50">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                      <RectangleHorizontal className="w-3.5 h-3.5" /> Verificação de Porta (Door Check)
+                    </p>
+                    <span className="text-[10px] font-mono text-slate-500">
+                      Porta: {manifest.door_checks[0].doorDims.w}x{manifest.door_checks[0].doorDims.h}cm
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {manifest.door_checks.map((check, idx) => (
+                      <div key={idx} className={`flex items-center justify-between p-2 rounded border ${check.passed ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-red-500/5 border-red-500/10'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-1.5 h-1.5 rounded-full ${check.passed ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                          <div>
+                            <p className="text-xs font-mono text-slate-300">
+                              <span className="text-slate-500 mr-2">#{check.pranchaIndex}</span>
+                              {check.pieceDims.join('x')}cm
+                            </p>
+                            {!check.passed && (
+                              <p className="text-[10px] text-red-400 mt-0.5">
+                                Menores dimensões ({check.sortedDims[0]}x{check.sortedDims[1]}) excedem porta.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${check.passed ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10'}`}>
+                            {check.passed ? 'PASS' : 'FAIL'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <AircraftHoldMap 
                 aircraft={manifest.flight_info.aircraft} 
                 allocation={manifest.allocation} 
