@@ -124,60 +124,89 @@ export default function Home() {
     
     try {
       const now = new Date();
+      const isoDateTime = now.toISOString();
       const searchDateObj = selectedSearchDate ? new Date(selectedSearchDate + 'T12:00:00') : now;
       const searchDateStr = searchDateObj.toLocaleDateString('pt-BR');
       
-      // Simulação de chamada a uma API interna da LATAM (ex: Sabre/AIMS)
-      // Em um cenário real de produção, isso seria substituído por um fetch() para o endpoint da companhia.
-      await new Promise(resolve => setTimeout(resolve, 600)); // Simula latência de rede de 600ms
+      const prompt = `ATUE COMO UM ESPECIALISTA SÊNIOR EM OPERAÇÕES AÉREAS E RASTREAMENTO DE VOOS (FLIGHT DISPATCHER).
       
-      const flightNumStr = input.flightCode.replace(/\D/g, '');
-      const flightNum = parseInt(flightNumStr, 10) || 0;
+      Sua missão é descobrir o MODELO EXATO E CONFIRMADO da aeronave para o voo ${input.flightCode} da LATAM Brasil para a data de ${searchDateStr}.
       
-      let aircraft = 'A320';
-      let origin = 'GRU';
-      let destination = 'BSB';
+      Contexto Temporal Atual:
+      - ISO DateTime: ${isoDateTime}
+      - Data de Referência da Busca: ${searchDateStr}
       
-      // Lógica determinística baseada no número do voo para simular um banco de dados
-      if (flightNum >= 3000 && flightNum <= 3199) {
-        aircraft = 'A319';
-        origin = 'CGH';
-        destination = 'SDU';
-      } else if (flightNum >= 3500 && flightNum <= 3999) {
-        aircraft = 'A321';
-        origin = 'GRU';
-        destination = 'FOR';
-      } else if (flightNum >= 8000) {
-        aircraft = 'OTHER'; // ex: B777
-        origin = 'GRU';
-        destination = 'MIA';
-      } else if (flightNum % 2 === 0) {
-        aircraft = 'A320';
-        origin = 'BSB';
-        destination = 'CGH';
+      PROTOCOLO DE VERIFICAÇÃO RIGOROSA E CROSS-CHECK OBRIGATÓRIO:
+      1. Você DEVE realizar buscas EXTENSIVAS no Google para o voo "${input.flightCode}" na data "${searchDateStr}" focando em sites de rastreamento em tempo real.
+      2. CROSS-CHECK OBRIGATÓRIO: Você NÃO PODE confiar em apenas uma fonte. Você DEVE cruzar os dados entre pelo menos duas destas fontes:
+         - FlightRadar24
+         - FlightAware
+         - RadarBox
+         - Site oficial da LATAM
+      3. Se a data for FUTURA, procure pela aeronave ESCALADA (Scheduled). Se for PASSADA, procure a que REALMENTE OPEROU.
+      
+      REGRAS DE SAÍDA:
+      - Modelo: Identifique se é A319, A320, A321, B767, B787, B777. Mapeie para "A319", "A320", "A321" ou "OTHER".
+      - Origem/Destino: Use os códigos IATA reais (ex: GRU, MIA, LIS).
+      - Data: A data do voo retornado (DD/MM/YYYY).
+      - CLS (Cargo Loading System): Verifique e informe se a aeronave identificada possui o sistema de carregamento mecanizado (CLS) instalado nos compartimentos 1, 2, 3 e 4.
+      
+      Responda APENAS com o JSON final no seguinte formato:
+      \`\`\`json
+      {
+        "aircraft": "A321",
+        "origin": "GRU",
+        "destination": "MIA",
+        "date": "${searchDateStr}",
+        "clsInfo": "Aeronave equipada com CLS nos compartimentos 1, 2, 3 e 4.",
+        "reasoning": "CROSS-CHECK REALIZADO: Encontrado no histórico do FlightRadar24 como aeronave escalada para ${searchDateStr}. Confirmado também no FlightAware."
+      }
+      \`\`\``;
+
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY_PIXOR;
+      if (!apiKey) {
+        throw new Error('A chave de API (NEXT_PUBLIC_GEMINI_API_KEY_PIXOR) não foi encontrada. Verifique as variáveis de ambiente no Cloudflare Pages e faça um novo Deploy.');
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
+      const model = ai.models.generateContent({
+        model: AI_MODEL,
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+          responseMimeType: "application/json"
+        }
+      });
+
+      const response = await model;
+      const text = response.text;
+      
+      if (!text) {
+        throw new Error('Resposta vazia da IA');
+      }
+
+      const data = extractJSON(text);
+      
+      if (!data) {
+        console.error("Raw AI Response:", text);
+        throw new Error('Formato de resposta inválido da IA. Tente novamente.');
       }
       
+      let aircraft = data.aircraft;
       if (!['A319', 'A320', 'A321'].includes(aircraft)) {
         aircraft = 'OTHER';
       }
       
-      const clsInfo = aircraft !== 'OTHER' 
-        ? `Aeronave ${aircraft} equipada com CLS nos compartimentos 1, 2, 3 e 4.` 
-        : "Sistema CLS não confirmado para esta aeronave.";
-        
-      const reasoning = `INTEGRAÇÃO API INTERNA: Dados recuperados instantaneamente do sistema de malha (Mock Sabre/AIMS). Aeronave escalada: ${aircraft}.`;
-
       setInput(prev => ({
         ...prev,
         aircraft: aircraft as AircraftType,
-        origin: origin,
-        destination: destination,
-        aiReasoning: reasoning,
-        clsInfo: clsInfo
+        origin: data.origin || prev.origin,
+        destination: data.destination || prev.destination,
+        aiReasoning: data.reasoning,
+        clsInfo: data.clsInfo
       }));
-      
-      setFlightDate(searchDateStr);
-      setFlightSource('internal_api');
+      setFlightDate(data.date || searchDateStr);
+      setFlightSource('realtime_grounding');
     } catch (err: any) {
       console.error('Flight fetch error:', err);
       
@@ -442,13 +471,13 @@ export default function Home() {
                           REF: {flightDate}
                         </span>
                       )}
-                      {flightSource === 'internal_api' && (
+                      {flightSource === 'realtime_grounding' && (
                         <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] px-2 py-1 rounded-md font-bold flex items-center gap-1.5 shadow-sm">
                           <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                           </span>
-                          API INTERNA (MOCK)
+                          REAL-TIME
                         </span>
                       )}
                     </div>
@@ -465,16 +494,9 @@ export default function Home() {
                           <span className="text-[9px] font-bold text-[#e3004a] bg-[#e3004a]/5 border border-[#e3004a]/20 px-1.5 py-0.5 rounded uppercase tracking-wider">Não Homologada</span>
                         )}
                       </div>
-                      <select
-                        value={input.aircraft}
-                        onChange={(e) => setInput({ ...input, aircraft: e.target.value as AircraftType })}
-                        className={`text-2xl font-mono font-bold tracking-tight w-full bg-transparent outline-none focus:ring-0 p-0 border-none cursor-pointer appearance-none ${input.aircraft === 'OTHER' ? 'text-slate-400' : 'text-[#1b0088]'}`}
-                      >
-                        <option value="A319">A319</option>
-                        <option value="A320">A320</option>
-                        <option value="A321">A321</option>
-                        <option value="OTHER">OTHER</option>
-                      </select>
+                      <span className={`text-2xl font-mono font-bold tracking-tight ${input.aircraft === 'OTHER' ? 'text-slate-400' : 'text-[#1b0088]'}`}>
+                        {input.aircraft === 'OTHER' && flightError ? 'N/A' : input.aircraft}
+                      </span>
                     </div>
                   </div>
 
