@@ -1208,7 +1208,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-1 gap-4 mb-6">
                 <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4 border border-slate-200 dark:border-white/5">
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">Voo / Rota / Aeronave</p>
                   <p className="text-lg font-mono font-bold text-slate-900 dark:text-white">{manifest.flight_info.code} <span className="text-slate-400 dark:text-slate-700">|</span> {manifest.flight_info.route}</p>
