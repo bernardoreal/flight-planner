@@ -31,13 +31,13 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
         </div>
         
         {/* Holds Content - Responsive Container */}
-        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between w-full max-w-lg px-2 gap-6 md:gap-2">
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between w-full px-2 gap-6 md:gap-0">
           
           {/* FWD Section */}
-          <div className="flex flex-col items-center gap-2 w-full md:w-auto">
+          <div className="flex flex-col items-center gap-2 w-full md:flex-1 border-r border-white/5 md:border-none">
             <div className="text-[10px] font-mono text-slate-500 md:hidden tracking-widest border-b border-slate-700/50 pb-1 w-full text-center mb-1">PORÃO DIANTEIRO (FWD)</div>
-            <div className="flex gap-1.5 sm:gap-2">
-              <div className="text-[8px] font-mono text-slate-600 hidden md:block self-center mr-1">NOSE</div>
+            <div className="flex gap-1.5 sm:gap-2 justify-center w-full">
+              <div className="text-[8px] font-mono text-slate-600 hidden md:block self-center mr-2">NOSE</div>
               {Array.from({ length: Math.max(config.fwd, allocation.fwd) }).map((_, i) => {
                  const isUsed = i < allocation.fwd;
                  const isOver = i >= config.fwd;
@@ -56,7 +56,7 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
                  return (
                   <div 
                     key={`fwd-${i}`} 
-                    className={`h-10 w-8 md:h-10 md:w-8 rounded-sm border flex items-center justify-center text-[9px] font-bold transition-all ${boxClass}`}
+                    className={`h-10 w-8 md:h-12 md:w-10 rounded-sm border flex items-center justify-center text-[9px] font-bold transition-all ${boxClass}`}
                   >
                     {label}
                   </div>
@@ -68,10 +68,10 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
           {/* Center Gap / Separator */}
           <div className="flex items-center justify-center px-1 w-full md:w-auto">
             {/* Desktop Wing Separator */}
-            <div className="hidden md:flex flex-col items-center">
-              <div className="w-px h-8 bg-slate-700/50"></div>
+            <div className="hidden md:flex flex-col items-center px-4">
+              <div className="w-px h-10 bg-slate-700/50"></div>
               <span className="text-[6px] text-slate-600 font-mono my-1">WING</span>
-              <div className="w-px h-8 bg-slate-700/50"></div>
+              <div className="w-px h-10 bg-slate-700/50"></div>
             </div>
             
             {/* Mobile Wing Separator */}
@@ -83,9 +83,9 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
           </div>
           
           {/* AFT Section */}
-          <div className="flex flex-col items-center gap-2 w-full md:w-auto">
+          <div className="flex flex-col items-center gap-2 w-full md:flex-1">
             <div className="text-[10px] font-mono text-slate-500 md:hidden tracking-widest border-b border-slate-700/50 pb-1 w-full text-center mb-1">PORÃO TRASEIRO (AFT)</div>
-            <div className="flex gap-1.5 sm:gap-2">
+            <div className="flex gap-1.5 sm:gap-2 justify-center w-full">
               {Array.from({ length: Math.max(config.aft, allocation.aft + config.bags) }).map((_, i) => {
                  const isBag = i >= config.aft - config.bags && i < config.aft;
                  const isUsed = !isBag && i < allocation.aft + (i >= config.aft ? config.bags : 0);
@@ -108,7 +108,7 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
                  return (
                   <div 
                     key={`aft-${i}`} 
-                    className={`h-10 w-8 md:h-10 md:w-8 rounded-sm border flex items-center justify-center text-[9px] font-bold transition-all ${boxClass}`}
+                    className={`h-10 w-8 md:h-12 md:w-10 rounded-sm border flex items-center justify-center text-[9px] font-bold transition-all ${boxClass}`}
                   >
                     {label}
                   </div>
@@ -118,7 +118,7 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
               {/* BULK */}
               {config.bulk > 0 && (
                 <>
-                  <div className="w-px h-10 border-l border-slate-700/50 border-dashed mx-0.5"></div>
+                  <div className="w-px h-10 md:h-12 border-l border-slate-700/50 border-dashed mx-0.5"></div>
                   {Array.from({ length: Math.max(config.bulk, allocation.bulk) }).map((_, i) => {
                      const isUsed = i < allocation.bulk;
                      const isOver = i >= config.bulk;
@@ -141,7 +141,7 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
                      return (
                       <div 
                         key={`bulk-${i}`} 
-                        className={`h-10 w-8 md:h-10 md:w-8 rounded-sm border flex items-center justify-center text-[9px] font-bold transition-all ${boxClass}`}
+                        className={`h-10 w-8 md:h-12 md:w-10 rounded-sm border flex items-center justify-center text-[9px] font-bold transition-all ${boxClass}`}
                       >
                         {label}
                       </div>
@@ -149,7 +149,7 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
                   })}
                 </>
               )}
-              <div className="text-[8px] font-mono text-slate-600 hidden md:block self-center ml-1">TAIL</div>
+              <div className="text-[8px] font-mono text-slate-600 hidden md:block self-center ml-2">TAIL</div>
             </div>
           </div>
         </div>
