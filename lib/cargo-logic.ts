@@ -613,16 +613,16 @@ export function generateManifest(input: CargoInput): ManifestResult {
         cg_impact = 'Balanceado com leve tendência AFT (Bulk ocupado).';
         fuel_penalty = 'Média/Baixa.';
       } else {
-        // Default allocation
-        fwd = Math.min(Math.ceil(posicoes / 2), fwdCargoMax);
+        // Default allocation: Fill FWD first (Standard for narrow-body to maintain forward CG)
+        fwd = Math.min(posicoes, fwdCargoMax);
         aft = posicoes - fwd;
         if (aft > aftCargoMax) {
           const excess = aft - aftCargoMax;
           aft = aftCargoMax;
-          fwd += excess;
+          // This shouldn't happen if posicoes <= total cargo capacity
         }
-        cg_impact = 'Balanceado (Distribuição FWD/AFT simétrica).';
-        fuel_penalty = 'Média (Ideal para cruzeiro padrão).';
+        cg_impact = 'Tendência FWD (Otimização de estabilidade).';
+        fuel_penalty = 'Média.';
       }
     }
 

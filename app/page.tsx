@@ -413,124 +413,152 @@ export default function Home() {
   };
 
   const handleDownloadLIR = () => {
-    // Replicate grouping logic for PDF generation
-    const allGroups: { posNum: number, pranchas: any[], totalWeight: number, totalCubed: number, hasOversize: boolean }[] = [];
-    let currentPos = 1;
+    // 1. Group pranchas into positions exactly as they should appear on the LIR
+    const positions: LIRPosition[] = [];
     let currentWeight = 0;
     let currentCubed = 0;
     let currentGroupPranchas: any[] = [];
     let groupHasOversize = false;
 
-    input.pranchas.forEach((prancha, index) => {
+    const finalizeGroup = () => {
+      if (currentGroupPranchas.length === 0) return;
+      
+      positions.push({
+        posId: '', // Will be assigned later
+        type: input.cargoType === 'LOOSE' ? 'PALLET' : 'ULD',
+        tag: currentGroupPranchas.map(p => p.id.substring(0, 6)).join(', ').toUpperCase(),
+        weight: Math.round(currentWeight),
+        volumes: currentGroupPranchas.reduce((sum, p) => sum + p.volumes, 0),
+        remarks: currentGroupPranchas.map(p => p.specialCargoType).filter(t => t && t !== 'NONE').join(', '),
+        hasOversize: groupHasOversize
+      });
+      
+      currentWeight = 0;
+      currentCubed = 0;
+      currentGroupPranchas = [];
+      groupHasOversize = false;
+    };
+
+    input.pranchas.forEach((prancha) => {
       const cubedWeight = (prancha.length * prancha.width * prancha.height) / 6000;
       
-      if (((currentWeight + prancha.weight > 900 || currentCubed + cubedWeight > 600) && (currentWeight > 0 || currentCubed > 0)) ||
-          (prancha.hasOversize && currentGroupPranchas.length > 0) ||
-          (groupHasOversize && currentGroupPranchas.length > 0)) {
-        
-        allGroups.push({ 
-          posNum: currentPos, 
-          pranchas: currentGroupPranchas, 
-          totalWeight: currentWeight, 
-          totalCubed: currentCubed,
-          hasOversize: groupHasOversize
-        });
-        
-        currentPos += groupHasOversize ? 2 : 1;
-        currentWeight = 0;
-        currentCubed = 0;
-        currentGroupPranchas = [];
-        groupHasOversize = false;
+      // Logic for starting a new position
+      const wouldOverflow = (currentWeight + prancha.weight > 900) || (currentCubed + cubedWeight > 600);
+      const forcedNew = prancha.hasOversize || groupHasOversize;
+
+      if (currentGroupPranchas.length > 0 && (wouldOverflow || forcedNew)) {
+        finalizeGroup();
       }
-      
+
       currentWeight += prancha.weight;
       currentCubed += cubedWeight;
       if (prancha.hasOversize) groupHasOversize = true;
-      currentGroupPranchas.push({ ...prancha, originalIndex: index });
-      
+      currentGroupPranchas.push(prancha);
+
+      // Handle individual items that exceed position limits
       while (currentWeight > 900 || currentCubed > 600) {
-        allGroups.push({ 
-          posNum: currentPos, 
-          pranchas: currentGroupPranchas, 
-          totalWeight: currentWeight, 
-          totalCubed: currentCubed,
-          hasOversize: groupHasOversize
+        const tempWeight = currentWeight;
+        const tempCubed = currentCubed;
+        const tempPranchas = [...currentGroupPranchas];
+        const tempOversize = groupHasOversize;
+
+        // Push a "full" position
+        positions.push({
+          posId: '',
+          type: input.cargoType === 'LOOSE' ? 'PALLET' : 'ULD',
+          tag: tempPranchas.map(p => p.id.substring(0, 6)).join(', ').toUpperCase(),
+          weight: 900,
+          volumes: Math.ceil(tempPranchas.reduce((sum, p) => sum + p.volumes, 0) * (900 / tempWeight)),
+          remarks: tempPranchas.map(p => p.specialCargoType).filter(t => t && t !== 'NONE').join(', '),
+          hasOversize: tempOversize
         });
-        currentPos += groupHasOversize ? 2 : 1;
-        currentWeight = Math.max(0, currentWeight - 900);
-        currentCubed = Math.max(0, currentCubed - 600);
-        currentGroupPranchas = [];
-        if (currentWeight === 0 && currentCubed === 0) groupHasOversize = false;
+
+        currentWeight = Math.max(0, tempWeight - 900);
+        currentCubed = Math.max(0, tempCubed - 600);
+        // Keep currentGroupPranchas and groupHasOversize for the remainder
       }
     });
 
-    if (currentGroupPranchas.length > 0) {
-      allGroups.push({ 
-        posNum: currentPos, 
-        pranchas: currentGroupPranchas, 
-        totalWeight: currentWeight, 
-        totalCubed: currentCubed,
-        hasOversize: groupHasOversize
-      });
-    }
+    finalizeGroup();
 
-    // Map to LIRPosition and split by compartment based on manifest allocation
+    // 2. Assign technical 2-digit IDs and split into compartments
+    const aircraft = manifest.flight_info.aircraft;
     const fwdPositions: LIRPosition[] = [];
     const aftPositions: LIRPosition[] = [];
     const bulkPositions: LIRPosition[] = [];
 
-    let groupsProcessed = 0;
-    
-    // FWD Compartment (1 & 2)
-    let fwdPosCounter = 1;
-    while (fwdPosCounter <= manifest.allocation.fwd && groupsProcessed < allGroups.length) {
-        const group = allGroups[groupsProcessed];
-        const posLabel = `1.${fwdPosCounter}`;
-        fwdPositions.push({
-            posId: group.hasOversize ? `${posLabel}-1.${fwdPosCounter + 1}` : posLabel,
-            type: input.cargoType === 'LOOSE' ? 'PALLET' : 'ULD',
-            tag: group.pranchas.map(p => p.id.substring(0, 6)).join(', ').toUpperCase(),
-            weight: Math.round(group.totalWeight),
-            volumes: group.pranchas.reduce((sum, p) => sum + p.volumes, 0),
-            remarks: group.pranchas.map(p => p.specialCargoType).filter(t => t && t !== 'NONE').join(', '),
-            hasOversize: group.hasOversize
-        });
-        fwdPosCounter += group.hasOversize ? 2 : 1;
-        groupsProcessed++;
-    }
+    // Helper for labels
+    const getLabel = (compartment: number, index: number) => {
+        return `${compartment}${index}`;
+    };
 
-    // AFT Compartment (3 & 4)
-    let aftPosCounter = 1;
-    while (aftPosCounter <= manifest.allocation.aft && groupsProcessed < allGroups.length) {
-        const group = allGroups[groupsProcessed];
-        const posLabel = `3.${aftPosCounter}`;
-        aftPositions.push({
-            posId: group.hasOversize ? `${posLabel}-3.${aftPosCounter + 1}` : posLabel,
-            type: input.cargoType === 'LOOSE' ? 'PALLET' : 'ULD',
-            tag: group.pranchas.map(p => p.id.substring(0, 6)).join(', ').toUpperCase(),
-            weight: Math.round(group.totalWeight),
-            volumes: group.pranchas.reduce((sum, p) => sum + p.volumes, 0),
-            remarks: group.pranchas.map(p => p.specialCargoType).filter(t => t && t !== 'NONE').join(', '),
-            hasOversize: group.hasOversize
-        });
-        aftPosCounter += group.hasOversize ? 2 : 1;
-        groupsProcessed++;
-    }
+    let globalPosIdx = 1;
+    let currentCompartment = 1;
+    let posInCompartment = 1;
 
-    // BULK Compartment (5)
-    if (manifest.allocation.bulk > 0 && groupsProcessed < allGroups.length) {
-        const group = allGroups[groupsProcessed];
-        bulkPositions.push({
-            posId: '5.1',
-            type: 'BULK',
-            tag: group.pranchas.map(p => p.id.substring(0, 6)).join(', ').toUpperCase(),
-            weight: Math.round(group.totalWeight),
-            volumes: group.pranchas.reduce((sum, p) => sum + p.volumes, 0),
-            remarks: group.pranchas.map(p => p.specialCargoType).filter(t => t && t !== 'NONE').join(', '),
-            hasOversize: group.hasOversize
-        });
-        groupsProcessed++;
-    }
+    // Determine limits based on fleet config
+    const fwdLimit = manifest.allocation.fwd;
+    const aftLimit = manifest.allocation.aft;
+
+    positions.forEach((pos, idx) => {
+        let label = '';
+        const isBulk = idx === positions.length - 1 && manifest.allocation.bulk > 0;
+
+        if (isBulk) {
+            label = '51';
+            bulkPositions.push({ ...pos, posId: label });
+        } else if (globalPosIdx <= fwdLimit) {
+            // FWD logic
+            if (aircraft.includes('A321')) {
+                // A321 FWD: 11, 12, 21, 22, 23
+                if (posInCompartment > 2 && currentCompartment === 1) {
+                    currentCompartment = 2;
+                    posInCompartment = 1;
+                }
+            } else {
+                // A320/A319 FWD: 11, 12, 13, 21...
+                if (posInCompartment > 3 && currentCompartment === 1) {
+                    currentCompartment = 2;
+                    posInCompartment = 1;
+                }
+            }
+            
+            label = getLabel(currentCompartment, posInCompartment);
+            if (pos.hasOversize) {
+                const nextLabel = getLabel(currentCompartment, posInCompartment + 1);
+                label = `${label}-${nextLabel}`;
+                posInCompartment += 2;
+                globalPosIdx += 2;
+            } else {
+                posInCompartment += 1;
+                globalPosIdx += 1;
+            }
+            fwdPositions.push({ ...pos, posId: label });
+        } else {
+            // AFT logic
+            if (aftPositions.length === 0) {
+                currentCompartment = 3;
+                posInCompartment = 1;
+            }
+
+            if (posInCompartment > 2 && currentCompartment === 3) {
+                currentCompartment = 4;
+                posInCompartment = 1;
+            }
+
+            label = getLabel(currentCompartment, posInCompartment);
+            if (pos.hasOversize) {
+                const nextLabel = getLabel(currentCompartment, posInCompartment + 1);
+                label = `${label}-${nextLabel}`;
+                posInCompartment += 2;
+                globalPosIdx += 2;
+            } else {
+                posInCompartment += 1;
+                globalPosIdx += 1;
+            }
+            aftPositions.push({ ...pos, posId: label });
+        }
+    });
 
     generateLIR({
       flightCode: manifest.flight_info.code,
