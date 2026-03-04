@@ -1509,6 +1509,34 @@ export default function Home() {
           </motion.div>
         </div>
       </main>
+
+      <footer className="bg-slate-200 dark:bg-slate-900 border-t-4 border-[#e3004a] py-8 mt-auto relative z-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="bg-[#e3004a]/10 p-2 rounded-lg">
+                 <ShieldAlert className="w-6 h-6 text-[#e3004a]" />
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-widest">LATAM Cargo Operations</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Build-up Optimization Tool</span>
+              </div>
+            </div>
+            <div className="text-sm text-slate-700 dark:text-slate-300 text-left md:text-right max-w-3xl leading-relaxed">
+              <p className="mb-2">
+                <strong className="text-[#e3004a] uppercase font-bold">Aviso Legal Importante:</strong> Esta aplicação é uma ferramenta de apoio à decisão.
+                Os resultados são estimativas baseadas em IA.
+              </p>
+              <p className="font-semibold text-slate-900 dark:text-white mb-2">
+                O uso desta ferramenta NÃO substitui os sistemas oficiais de peso e balanceamento (Lido/Flight, NetLine/Load) nem os manuais operacionais aprovados pela LATAM e homologados pela ANAC.
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                A validação final e a segurança do voo são de responsabilidade exclusiva do Despachante Operacional de Voo (DOV) e do Supervisor de Carga.
+              </p>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
