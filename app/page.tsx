@@ -58,6 +58,7 @@ export default function Home() {
   const [expandedPranchaIndex, setExpandedPranchaIndex] = useState<number>(0);
 
   const [isDateInputFocused, setIsDateInputFocused] = useState(false);
+  const [searchProgress, setSearchProgress] = useState(0);
 
   // Helper to format date for display
   const formatDateToBR = (isoDate: string) => {
@@ -134,9 +135,18 @@ export default function Home() {
   const handleFetchFlight = async () => {
     if (!input.flightCode) return;
     setIsLoadingFlight(true);
+    setSearchProgress(0);
     setFlightError('');
     setInput(prev => ({ ...prev, aiReasoning: undefined }));
     
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setSearchProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.floor(Math.random() * 10) + 1;
+      });
+    }, 500);
+
     try {
       const now = new Date();
       const isoDateTime = now.toISOString();
@@ -222,6 +232,7 @@ export default function Home() {
       }));
       setFlightDate(data.date || searchDateStr);
       setFlightSource('realtime_grounding');
+      setSearchProgress(100);
     } catch (err: any) {
       console.error('Flight fetch error:', err);
       
@@ -240,7 +251,9 @@ export default function Home() {
         setFlightError(err.message || 'Falha ao buscar dados em tempo real do voo.');
       }
     } finally {
+      clearInterval(progressInterval);
       setIsLoadingFlight(false);
+      setTimeout(() => setSearchProgress(0), 1000);
     }
   };
 
@@ -482,10 +495,18 @@ export default function Home() {
                   <button 
                     onClick={handleFetchFlight}
                     disabled={isLoadingFlight || !input.flightCode}
-                    className="w-full bg-[#e3004a] hover:bg-[#e3004a]/90 active:scale-[0.98] shadow-lg shadow-[#e3004a]/20 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+                    className="w-full relative overflow-hidden bg-[#e3004a] hover:bg-[#e3004a]/90 active:scale-[0.98] shadow-lg shadow-[#e3004a]/20 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 group"
                   >
-                    {isLoadingFlight ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-                    <span>Buscar Dados em Tempo Real</span>
+                    {isLoadingFlight && (
+                      <div 
+                        className="absolute left-0 top-0 bottom-0 bg-white/20 transition-all duration-300 ease-out"
+                        style={{ width: `${searchProgress}%` }}
+                      />
+                    )}
+                    <div className="relative z-10 flex items-center gap-2">
+                      {isLoadingFlight ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                      <span>{isLoadingFlight ? `Buscando... ${searchProgress}%` : 'Buscar Dados em Tempo Real'}</span>
+                    </div>
                   </button>
                   
                   {flightError && (
