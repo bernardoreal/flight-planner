@@ -412,17 +412,17 @@ export default function Home() {
               <Plane className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white tracking-tight leading-none">LATAM Cargo</h1>
-              <p className="text-[10px] font-medium text-white/70 uppercase tracking-widest mt-0.5">Global Operations Master</p>
+              <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-none">LATAM Cargo</h1>
+              <p className="text-[10px] font-medium text-white/70 uppercase tracking-widest mt-0.5 hidden sm:block">Global Operations Master</p>
             </div>
           </div>
           <div className="flex items-center gap-4 text-white/80 text-sm font-medium">
-            <span className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md border border-white/10 text-[10px] sm:text-xs max-w-[140px] sm:max-w-none">
+            <span className="hidden sm:flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md border border-white/10 text-[10px] sm:text-xs max-w-[140px] sm:max-w-none">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
               <span className="truncate">AI: {AI_MODEL}</span>
             </span>
-            <span className="hidden sm:flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> QA Certified</span>
-            <span className="hidden sm:flex items-center gap-1.5"><CheckCircle className="w-4 h-4" /> System Online</span>
+            <span className="hidden md:flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> QA Certified</span>
+            <span className="hidden md:flex items-center gap-1.5"><CheckCircle className="w-4 h-4" /> System Online</span>
             <div className="ml-2 pl-2 border-l border-white/20">
               <ThemeToggle />
             </div>
