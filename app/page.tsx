@@ -3,11 +3,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { motion } from 'motion/react';
-import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera, RectangleHorizontal, X, ImagePlus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera, RectangleHorizontal, X, ImagePlus, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { AircraftType, CargoInput, ManifestResult, generateManifest, ULD_SPECS } from '@/lib/cargo-logic';
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { generateLIR, LIRPosition } from '@/lib/generateLIR';
 
 // MODELO ESCOLHIDO: Gemini 3 Flash (Recomendado para tarefas de texto/busca)
 const AI_MODEL = 'gemini-3-flash-preview';
@@ -56,6 +57,7 @@ export default function Home() {
   const [isAnalyzingImage, setIsAnalyzingImage] = useState<number | null>(null);
   const [pranchaImages, setPranchaImages] = useState<Record<string, { file: File, preview: string }[]>>({});
   const [expandedPranchaIndex, setExpandedPranchaIndex] = useState<number>(0);
+  const [expandedPositionGroup, setExpandedPositionGroup] = useState<number>(1);
 
   const [isDateInputFocused, setIsDateInputFocused] = useState(false);
   const [searchProgress, setSearchProgress] = useState(0);
@@ -75,6 +77,10 @@ export default function Home() {
 
   const togglePrancha = (index: number) => {
     setExpandedPranchaIndex(expandedPranchaIndex === index ? -1 : index);
+  };
+
+  const togglePositionGroup = (posNum: number) => {
+    setExpandedPositionGroup(expandedPositionGroup === posNum ? 0 : posNum);
   };
 
   // Initialize date on client-side to avoid hydration mismatch
@@ -404,6 +410,138 @@ export default function Home() {
     } finally {
       setIsAnalyzingImage(null);
     }
+  };
+
+  const handleDownloadLIR = () => {
+    // Replicate grouping logic for PDF generation
+    const allGroups: { posNum: number, pranchas: any[], totalWeight: number, totalCubed: number, hasOversize: boolean }[] = [];
+    let currentPos = 1;
+    let currentWeight = 0;
+    let currentCubed = 0;
+    let currentGroupPranchas: any[] = [];
+    let groupHasOversize = false;
+
+    input.pranchas.forEach((prancha, index) => {
+      const cubedWeight = (prancha.length * prancha.width * prancha.height) / 6000;
+      
+      if (((currentWeight + prancha.weight > 900 || currentCubed + cubedWeight > 600) && (currentWeight > 0 || currentCubed > 0)) ||
+          (prancha.hasOversize && currentGroupPranchas.length > 0) ||
+          (groupHasOversize && currentGroupPranchas.length > 0)) {
+        
+        allGroups.push({ 
+          posNum: currentPos, 
+          pranchas: currentGroupPranchas, 
+          totalWeight: currentWeight, 
+          totalCubed: currentCubed,
+          hasOversize: groupHasOversize
+        });
+        
+        currentPos += groupHasOversize ? 2 : 1;
+        currentWeight = 0;
+        currentCubed = 0;
+        currentGroupPranchas = [];
+        groupHasOversize = false;
+      }
+      
+      currentWeight += prancha.weight;
+      currentCubed += cubedWeight;
+      if (prancha.hasOversize) groupHasOversize = true;
+      currentGroupPranchas.push({ ...prancha, originalIndex: index });
+      
+      while (currentWeight > 900 || currentCubed > 600) {
+        allGroups.push({ 
+          posNum: currentPos, 
+          pranchas: currentGroupPranchas, 
+          totalWeight: currentWeight, 
+          totalCubed: currentCubed,
+          hasOversize: groupHasOversize
+        });
+        currentPos += groupHasOversize ? 2 : 1;
+        currentWeight = Math.max(0, currentWeight - 900);
+        currentCubed = Math.max(0, currentCubed - 600);
+        currentGroupPranchas = [];
+        if (currentWeight === 0 && currentCubed === 0) groupHasOversize = false;
+      }
+    });
+
+    if (currentGroupPranchas.length > 0) {
+      allGroups.push({ 
+        posNum: currentPos, 
+        pranchas: currentGroupPranchas, 
+        totalWeight: currentWeight, 
+        totalCubed: currentCubed,
+        hasOversize: groupHasOversize
+      });
+    }
+
+    // Map to LIRPosition and split by compartment based on manifest allocation
+    const fwdPositions: LIRPosition[] = [];
+    const aftPositions: LIRPosition[] = [];
+    const bulkPositions: LIRPosition[] = [];
+
+    let groupsProcessed = 0;
+    
+    // FWD Compartment (1 & 2)
+    let fwdPosCounter = 1;
+    while (fwdPosCounter <= manifest.allocation.fwd && groupsProcessed < allGroups.length) {
+        const group = allGroups[groupsProcessed];
+        const posLabel = `1.${fwdPosCounter}`;
+        fwdPositions.push({
+            posId: group.hasOversize ? `${posLabel}-1.${fwdPosCounter + 1}` : posLabel,
+            type: input.cargoType === 'LOOSE' ? 'PALLET' : 'ULD',
+            tag: group.pranchas.map(p => p.id.substring(0, 6)).join(', ').toUpperCase(),
+            weight: Math.round(group.totalWeight),
+            volumes: group.pranchas.reduce((sum, p) => sum + p.volumes, 0),
+            remarks: group.pranchas.map(p => p.specialCargoType).filter(t => t && t !== 'NONE').join(', '),
+            hasOversize: group.hasOversize
+        });
+        fwdPosCounter += group.hasOversize ? 2 : 1;
+        groupsProcessed++;
+    }
+
+    // AFT Compartment (3 & 4)
+    let aftPosCounter = 1;
+    while (aftPosCounter <= manifest.allocation.aft && groupsProcessed < allGroups.length) {
+        const group = allGroups[groupsProcessed];
+        const posLabel = `3.${aftPosCounter}`;
+        aftPositions.push({
+            posId: group.hasOversize ? `${posLabel}-3.${aftPosCounter + 1}` : posLabel,
+            type: input.cargoType === 'LOOSE' ? 'PALLET' : 'ULD',
+            tag: group.pranchas.map(p => p.id.substring(0, 6)).join(', ').toUpperCase(),
+            weight: Math.round(group.totalWeight),
+            volumes: group.pranchas.reduce((sum, p) => sum + p.volumes, 0),
+            remarks: group.pranchas.map(p => p.specialCargoType).filter(t => t && t !== 'NONE').join(', '),
+            hasOversize: group.hasOversize
+        });
+        aftPosCounter += group.hasOversize ? 2 : 1;
+        groupsProcessed++;
+    }
+
+    // BULK Compartment (5)
+    if (manifest.allocation.bulk > 0 && groupsProcessed < allGroups.length) {
+        const group = allGroups[groupsProcessed];
+        bulkPositions.push({
+            posId: '5.1',
+            type: 'BULK',
+            tag: group.pranchas.map(p => p.id.substring(0, 6)).join(', ').toUpperCase(),
+            weight: Math.round(group.totalWeight),
+            volumes: group.pranchas.reduce((sum, p) => sum + p.volumes, 0),
+            remarks: group.pranchas.map(p => p.specialCargoType).filter(t => t && t !== 'NONE').join(', '),
+            hasOversize: group.hasOversize
+        });
+        groupsProcessed++;
+    }
+
+    generateLIR({
+      flightCode: manifest.flight_info.code,
+      date: manifest.flight_info.date,
+      route: manifest.flight_info.route,
+      aircraft: manifest.flight_info.aircraft,
+      totalWeight: manifest.total_weight,
+      fwdPositions,
+      aftPositions,
+      bulkPositions
+    });
   };
 
   return (
@@ -742,249 +880,379 @@ export default function Home() {
                   </div>
               </div>
 
-            <div className="space-y-4">
-              {input.pranchas.map((prancha, index) => {
-                const isExpanded = index === expandedPranchaIndex;
-                return (
-                <div key={prancha.id} className={`border border-slate-200 dark:border-white/5 rounded-xl bg-slate-50 dark:bg-slate-800/40 relative overflow-hidden transition-all ${isExpanded ? 'shadow-2xl ring-1 ring-slate-300 dark:ring-white/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'}`}>
-                    <div 
-                      className="flex justify-between items-center p-4 cursor-pointer select-none"
-                      onClick={() => togglePrancha(index)}
-                    >
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <RectangleHorizontal className={`w-4 h-4 ${isExpanded ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`} />
-                        <h3 className={`text-sm font-bold ${isExpanded ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
-                          {input.cargoType === 'LOOSE' ? 'Pallet' : 'ULD'} {index + 1}
-                        </h3>
-                        {!isExpanded && (
-                          <span className="text-xs text-slate-500 dark:text-slate-400 font-mono ml-2 border-l border-slate-300 dark:border-white/5 pl-2">
-                            {prancha.weight}kg | {prancha.volumes} vol
-                          </span>
-                        )}
-                        
-                        {/* Special Cargo Badges */}
-                        {prancha.specialCargoType && prancha.specialCargoType !== 'NONE' && (
-                          <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                            prancha.specialCargoType === 'ICE' ? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' :
-                            prancha.specialCargoType === 'DGR' ? 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800' :
-                            prancha.specialCargoType === 'AVI' ? 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800' :
-                            prancha.specialCargoType === 'ELI' ? 'bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800' :
-                            prancha.specialCargoType === 'WET' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800' :
-                            prancha.specialCargoType === 'PER' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' :
-                            prancha.specialCargoType === 'HUM' ? 'bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600' :
-                            prancha.specialCargoType === 'VAL' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800' :
-                            'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-                          }`}>
-                            {prancha.specialCargoType}
-                          </span>
-                        )}
-                        
-                        {/* Oversize Badge */}
-                        {prancha.hasOversize && (
-                           <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800">
-                             OVERSIZE
-                           </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {(isExpanded || (pranchaImages[prancha.id] && pranchaImages[prancha.id].length > 0)) && (
-                        <label 
-                          className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-md cursor-pointer hover:bg-indigo-200 transition-colors text-xs font-semibold"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ImagePlus className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Adicionar Foto</span>
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            multiple
-                            className="hidden" 
-                            onChange={(e) => handleAddImage(e, prancha.id)}
-                            disabled={isAnalyzingImage !== null}
-                          />
-                        </label>
-                      )}
-                      {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                    </div>
+            <div className="space-y-6">
+              {(() => {
+                // Bin packing logic for UI grouping
+                const groups: { posNum: number, pranchas: any[], totalWeight: number, totalCubed: number, hasOversize: boolean }[] = [];
+                let currentPos = 1;
+                let currentWeight = 0;
+                let currentCubed = 0;
+                let currentGroupPranchas: any[] = [];
+                let groupHasOversize = false;
 
-                  </div>
-
-                  <motion.div
-                    initial={false}
-                    animate={{ height: isExpanded ? 'auto' : 0, opacity: isExpanded ? 1 : 0 }}
-                    transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    className="overflow-hidden"
-                  >
-                    <div className="p-4 pt-0 border-t border-white/5">
-
-                  {pranchaImages[prancha.id] && pranchaImages[prancha.id].length > 0 && (
-                    <div className="mb-4 bg-slate-100 dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-white/5">
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {pranchaImages[prancha.id].map((img, imgIdx) => (
-                          <div key={imgIdx} className="relative w-16 h-16 rounded-md overflow-hidden border border-slate-200 dark:border-white/10 group">
-                            <Image 
-                              src={img.preview} 
-                              alt={`Foto ${imgIdx + 1}`} 
-                              width={64}
-                              height={64}
-                              className="w-full h-full object-cover" 
-                              referrerPolicy="no-referrer"
-                            />
-                            <button
-                              onClick={() => handleRemoveImage(prancha.id, imgIdx)}
-                              className="absolute top-0.5 right-0.5 bg-black/50 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
-                        <label className="w-16 h-16 rounded-md border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#1b0088] dark:hover:text-indigo-400 hover:border-[#1b0088] dark:hover:border-indigo-400 cursor-pointer transition-colors bg-slate-50 dark:bg-slate-900/50">
-                          <ImagePlus className="w-5 h-5 mb-1" />
-                          <span className="text-[10px] font-medium text-center leading-tight">Mais<br/>Fotos</span>
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            multiple
-                            className="hidden" 
-                            onChange={(e) => handleAddImage(e, prancha.id)}
-                            disabled={isAnalyzingImage !== null}
-                          />
-                        </label>
-                      </div>
-                      <button
-                        onClick={() => handleAnalyzeImages(index, prancha.id)}
-                        disabled={isAnalyzingImage === index}
-                        className="w-full bg-[#1b0088] hover:bg-[#1b0088]/90 disabled:bg-slate-700 text-white py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                      >
-                        {isAnalyzingImage === index ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Analisando {pranchaImages[prancha.id].length} foto(s)...
-                          </>
-                        ) : (
-                          <>
-                            <ImagePlus className="w-4 h-4" />
-                            Analisar {pranchaImages[prancha.id].length} foto(s)
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
+                input.pranchas.forEach((prancha, index) => {
+                  const cubedWeight = (prancha.length * prancha.width * prancha.height) / 6000;
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                        {input.cargoType === 'LOOSE' ? 'Peso (kg)' : 'Peso Bruto do ULD (kg)'}
-                      </label>
-                      <input
-                        type="number"
-                        value={prancha.weight}
-                        onChange={(e) => {
-                          const newPranchas = [...input.pranchas];
-                          newPranchas[index].weight = Number(e.target.value);
-                          setInput({...input, pranchas: newPranchas});
-                        }}
-                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                        {input.cargoType === 'LOOSE' ? 'Volumes (Unidades no Pallet)' : 'Volumes (Dentro do ULD)'}
-                      </label>
-                      <input
-                        type="number"
-                        value={prancha.volumes}
-                        onChange={(e) => {
-                          const newPranchas = [...input.pranchas];
-                          newPranchas[index].volumes = Number(e.target.value);
-                          setInput({...input, pranchas: newPranchas});
-                        }}
-                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                        {input.cargoType === 'LOOSE' ? 'Comp. (cm)' : 'Comp. ULD (cm)'}
-                      </label>
-                      <input
-                        type="number"
-                        value={prancha.length}
-                        onChange={(e) => {
-                          const newPranchas = [...input.pranchas];
-                          newPranchas[index].length = Number(e.target.value);
-                          setInput({...input, pranchas: newPranchas});
-                        }}
-                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                        {input.cargoType === 'LOOSE' ? 'Larg. (cm)' : 'Larg. ULD (cm)'}
-                      </label>
-                      <input
-                        type="number"
-                        value={prancha.width}
-                        onChange={(e) => {
-                          const newPranchas = [...input.pranchas];
-                          newPranchas[index].width = Number(e.target.value);
-                          setInput({...input, pranchas: newPranchas});
-                        }}
-                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                        {input.cargoType === 'LOOSE' ? 'Alt. (cm)' : 'Alt. ULD (cm)'}
-                      </label>
-                      <input
-                        type="number"
-                        value={prancha.height}
-                        onChange={(e) => {
-                          const newPranchas = [...input.pranchas];
-                          newPranchas[index].height = Number(e.target.value);
-                          setInput({...input, pranchas: newPranchas});
-                        }}
-                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Carga Especial (Segregação)</label>
-                    <select
-                      value={prancha.specialCargoType || 'NONE'}
-                      onChange={(e) => {
-                        const newPranchas = [...input.pranchas];
-                        newPranchas[index].specialCargoType = e.target.value as any;
-                        if (e.target.value !== 'ICE') {
-                          newPranchas[index].iceWeight = undefined;
-                        }
-                        setInput({...input, pranchas: newPranchas});
-                      }}
-                      className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all"
-                    >
-                      <option value="NONE" className="bg-slate-50 dark:bg-slate-900">Nenhuma</option>
-                      <option value="ICE" className="bg-slate-50 dark:bg-slate-900">Gelo Seco (ICE)</option>
-                      <option value="AVI" className="bg-slate-50 dark:bg-slate-900">Animais Vivos (AVI)</option>
-                      <option value="DGR" className="bg-slate-50 dark:bg-slate-900">Carga Perigosa (DGR)</option>
-                      <option value="WET" className="bg-slate-50 dark:bg-slate-900">Carga Úmida (WET)</option>
-                      <option value="PER" className="bg-slate-50 dark:bg-slate-900">Perecível (PER)</option>
-                      <option value="HUM" className="bg-slate-50 dark:bg-slate-900">Restos Mortais (HUM)</option>
-                      <option value="VAL" className="bg-slate-50 dark:bg-slate-900">Carga Valiosa (VAL)</option>
-                      <option value="ELI" className="bg-slate-50 dark:bg-slate-900">Bateria de ion lítio (ELI)</option>
-                    </select>
+                  // If adding this prancha exceeds limits, or if this prancha is oversize and we already have items,
+                  // or if we already have an oversize item in the group.
+                  if (((currentWeight + prancha.weight > 900 || currentCubed + cubedWeight > 600) && (currentWeight > 0 || currentCubed > 0)) ||
+                      (prancha.hasOversize && currentGroupPranchas.length > 0) ||
+                      (groupHasOversize && currentGroupPranchas.length > 0)) {
                     
-                    {['ICE', 'DGR', 'AVI', 'HUM', 'ELI'].includes(prancha.specialCargoType || '') && (
-                      <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-600 dark:text-amber-200 flex items-start gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" />
-                        <p><strong className="text-amber-500">Atenção:</strong> Esta carga requer emissão obrigatória de <strong>NOTOC</strong> (Notification to Captain) antes do voo.</p>
+                    groups.push({ 
+                      posNum: currentPos, 
+                      pranchas: currentGroupPranchas, 
+                      totalWeight: currentWeight, 
+                      totalCubed: currentCubed,
+                      hasOversize: groupHasOversize
+                    });
+                    
+                    currentPos += groupHasOversize ? 2 : 1;
+                    currentWeight = 0;
+                    currentCubed = 0;
+                    currentGroupPranchas = [];
+                    groupHasOversize = false;
+                  }
+                  
+                  currentWeight += prancha.weight;
+                  currentCubed += cubedWeight;
+                  if (prancha.hasOversize) groupHasOversize = true;
+                  currentGroupPranchas.push({ ...prancha, originalIndex: index });
+                  
+                  while (currentWeight > 900 || currentCubed > 600) {
+                    groups.push({ 
+                      posNum: currentPos, 
+                      pranchas: currentGroupPranchas, 
+                      totalWeight: currentWeight, 
+                      totalCubed: currentCubed,
+                      hasOversize: groupHasOversize
+                    });
+                    currentPos += groupHasOversize ? 2 : 1;
+                    currentWeight = Math.max(0, currentWeight - 900);
+                    currentCubed = Math.max(0, currentCubed - 600);
+                    currentGroupPranchas = [];
+                    // Reset groupHasOversize if the prancha was split, though usually oversize is a single unit
+                    if (currentWeight === 0 && currentCubed === 0) groupHasOversize = false;
+                  }
+                });
+
+                if (currentGroupPranchas.length > 0) {
+                  groups.push({ 
+                    posNum: currentPos, 
+                    pranchas: currentGroupPranchas, 
+                    totalWeight: currentWeight, 
+                    totalCubed: currentCubed,
+                    hasOversize: groupHasOversize
+                  });
+                }
+
+                return groups.map((group) => {
+                  const isGroupExpanded = expandedPositionGroup === group.posNum;
+                  const totalVolumes = group.pranchas.reduce((sum, p) => sum + p.volumes, 0);
+                  const specialTypes = Array.from(new Set(group.pranchas.map(p => p.specialCargoType).filter(t => t && t !== 'NONE')));
+                  
+                  return (
+                  <div key={`pos-${group.posNum}`} className={`border-2 border-slate-200 dark:border-white/10 rounded-2xl bg-white dark:bg-slate-900/50 shadow-sm overflow-hidden transition-all ${isGroupExpanded ? 'ring-2 ring-[#1b0088]/20 dark:ring-indigo-500/20' : ''}`}>
+                    <div 
+                      className="flex justify-between items-center p-4 cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                      onClick={() => togglePositionGroup(group.posNum)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <h2 className={`text-lg font-bold flex items-center gap-2 ${isGroupExpanded ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                          <Package className={`w-5 h-5 ${isGroupExpanded ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                          {group.hasOversize ? `Posições ${group.posNum} e ${group.posNum + 1}` : `Posição ${group.posNum}`}
+                        </h2>
+                        {!isGroupExpanded && (
+                          <div className="flex items-center gap-3 ml-4 border-l border-slate-300 dark:border-white/10 pl-4">
+                            <div className="flex gap-4 text-xs font-mono text-slate-500 dark:text-slate-400">
+                              <span>Peso: <strong>{Math.round(group.totalWeight)}kg</strong></span>
+                              <span>Cubado: <strong>{Math.round(group.totalCubed)}kg</strong></span>
+                              <span>Vols: <strong>{totalVolumes}</strong></span>
+                            </div>
+                            <div className="flex gap-1">
+                              {specialTypes.map((type) => (
+                                <span key={type as string} className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                  type === 'ICE' ? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' :
+                                  type === 'DGR' ? 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800' :
+                                  type === 'AVI' ? 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800' :
+                                  type === 'ELI' ? 'bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800' :
+                                  type === 'WET' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800' :
+                                  type === 'PER' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' :
+                                  type === 'HUM' ? 'bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600' :
+                                  type === 'VAL' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800' :
+                                  'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                                }`}>
+                                  {type as string}
+                                </span>
+                              ))}
+                              {group.hasOversize && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800">
+                                  OVS
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
+                      <div className="flex items-center gap-4">
+                        {isGroupExpanded && (
+                          <div className="flex gap-4 text-xs font-mono text-slate-500 dark:text-slate-400">
+                            <span>Peso: <strong className={group.totalWeight > 900 ? 'text-red-500' : 'text-slate-900 dark:text-white'}>{Math.round(group.totalWeight)}kg</strong> / 900kg</span>
+                            <span>Cubado: <strong className={group.totalCubed > 600 ? 'text-red-500' : 'text-slate-900 dark:text-white'}>{Math.round(group.totalCubed)}kg</strong> / 600kg</span>
+                          </div>
+                        )}
+                        {isGroupExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                      </div>
+                    </div>
+                    
+                    <motion.div
+                      initial={false}
+                      animate={{ height: isGroupExpanded ? 'auto' : 0, opacity: isGroupExpanded ? 1 : 0 }}
+                      transition={{ duration: 0.3, ease: 'easeInOut' }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-4 pt-0 border-t border-slate-100 dark:border-white/5 space-y-4 mt-2">
+                        {group.pranchas.map((prancha) => {
+                          const index = prancha.originalIndex;
+                          const isExpanded = index === expandedPranchaIndex;
+                          return (
+                            <div key={prancha.id} className={`border border-slate-200 dark:border-white/5 rounded-xl bg-slate-50 dark:bg-slate-800/40 relative overflow-hidden transition-all ${isExpanded ? 'shadow-2xl ring-1 ring-slate-300 dark:ring-white/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'}`}>
+                              <div 
+                                className="flex justify-between items-center p-4 cursor-pointer select-none"
+                                onClick={() => togglePrancha(index)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <RectangleHorizontal className={`w-4 h-4 ${isExpanded ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                                    <h3 className={`text-sm font-bold ${isExpanded ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
+                                      {input.cargoType === 'LOOSE' ? 'Pallet' : 'ULD'} {index + 1}
+                                    </h3>
+                                    {!isExpanded && (
+                                      <span className="text-xs text-slate-500 dark:text-slate-400 font-mono ml-2 border-l border-slate-300 dark:border-white/5 pl-2">
+                                        {prancha.weight}kg | {prancha.volumes} vol
+                                      </span>
+                                    )}
+                                    
+                                    {/* Special Cargo Badges */}
+                                    {prancha.specialCargoType && prancha.specialCargoType !== 'NONE' && (
+                                      <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                        prancha.specialCargoType === 'ICE' ? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' :
+                                        prancha.specialCargoType === 'DGR' ? 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800' :
+                                        prancha.specialCargoType === 'AVI' ? 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800' :
+                                        prancha.specialCargoType === 'ELI' ? 'bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800' :
+                                        prancha.specialCargoType === 'WET' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800' :
+                                        prancha.specialCargoType === 'PER' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' :
+                                        prancha.specialCargoType === 'HUM' ? 'bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600' :
+                                        prancha.specialCargoType === 'VAL' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800' :
+                                        'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                                      }`}>
+                                        {prancha.specialCargoType}
+                                      </span>
+                                    )}
+                                    
+                                    {/* Oversize Badge */}
+                                    {prancha.hasOversize && (
+                                       <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800">
+                                         OVERSIZE
+                                       </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {(isExpanded || (pranchaImages[prancha.id] && pranchaImages[prancha.id].length > 0)) && (
+                                    <label 
+                                      className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-md cursor-pointer hover:bg-indigo-200 transition-colors text-xs font-semibold"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <ImagePlus className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline">Adicionar Foto</span>
+                                      <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        multiple
+                                        className="hidden" 
+                                        onChange={(e) => handleAddImage(e, prancha.id)}
+                                        disabled={isAnalyzingImage !== null}
+                                      />
+                                    </label>
+                                  )}
+                                  {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                                </div>
+                              </div>
+
+                              <motion.div
+                                initial={false}
+                                animate={{ height: isExpanded ? 'auto' : 0, opacity: isExpanded ? 1 : 0 }}
+                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                className="overflow-hidden"
+                              >
+                                <div className="p-4 pt-0 border-t border-white/5">
+                                  {pranchaImages[prancha.id] && pranchaImages[prancha.id].length > 0 && (
+                                    <div className="mb-4 bg-slate-100 dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-white/5">
+                                      <div className="flex flex-wrap gap-2 mb-3">
+                                        {pranchaImages[prancha.id].map((img, imgIdx) => (
+                                          <div key={imgIdx} className="relative w-16 h-16 rounded-md overflow-hidden border border-slate-200 dark:border-white/10 group">
+                                            <Image 
+                                              src={img.preview} 
+                                              alt={`Foto ${imgIdx + 1}`} 
+                                              width={64}
+                                              height={64}
+                                              className="w-full h-full object-cover" 
+                                              referrerPolicy="no-referrer"
+                                            />
+                                            <button
+                                              onClick={() => handleRemoveImage(prancha.id, imgIdx)}
+                                              className="absolute top-0.5 right-0.5 bg-black/50 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        ))}
+                                        <label className="w-16 h-16 rounded-md border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#1b0088] dark:hover:text-indigo-400 hover:border-[#1b0088] dark:hover:border-indigo-400 cursor-pointer transition-colors bg-slate-50 dark:bg-slate-900/50">
+                                          <ImagePlus className="w-5 h-5 mb-1" />
+                                          <span className="text-[10px] font-medium text-center leading-tight">Mais<br/>Fotos</span>
+                                          <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            multiple
+                                            className="hidden" 
+                                            onChange={(e) => handleAddImage(e, prancha.id)}
+                                            disabled={isAnalyzingImage !== null}
+                                          />
+                                        </label>
+                                      </div>
+                                      <button
+                                        onClick={() => handleAnalyzeImages(index, prancha.id)}
+                                        disabled={isAnalyzingImage === index}
+                                        className="w-full bg-[#1b0088] hover:bg-[#1b0088]/90 disabled:bg-slate-700 text-white py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                                      >
+                                        {isAnalyzingImage === index ? (
+                                          <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Analisando {pranchaImages[prancha.id].length} foto(s)...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <ImagePlus className="w-4 h-4" />
+                                            Analisar {pranchaImages[prancha.id].length} foto(s)
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  )}
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                                {input.cargoType === 'LOOSE' ? 'Peso (kg)' : 'Peso Bruto do ULD (kg)'}
+                              </label>
+                              <input
+                                type="number"
+                                value={prancha.weight}
+                                onChange={(e) => {
+                                  const newPranchas = [...input.pranchas];
+                                  newPranchas[index].weight = Number(e.target.value);
+                                  setInput({...input, pranchas: newPranchas});
+                                }}
+                                className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                                {input.cargoType === 'LOOSE' ? 'Volumes (Unidades no Pallet)' : 'Volumes (Dentro do ULD)'}
+                              </label>
+                              <input
+                                type="number"
+                                value={prancha.volumes}
+                                onChange={(e) => {
+                                  const newPranchas = [...input.pranchas];
+                                  newPranchas[index].volumes = Number(e.target.value);
+                                  setInput({...input, pranchas: newPranchas});
+                                }}
+                                className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                                {input.cargoType === 'LOOSE' ? 'Comp. (cm)' : 'Comp. ULD (cm)'}
+                              </label>
+                              <input
+                                type="number"
+                                value={prancha.length}
+                                onChange={(e) => {
+                                  const newPranchas = [...input.pranchas];
+                                  newPranchas[index].length = Number(e.target.value);
+                                  setInput({...input, pranchas: newPranchas});
+                                }}
+                                className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                                {input.cargoType === 'LOOSE' ? 'Larg. (cm)' : 'Larg. ULD (cm)'}
+                              </label>
+                              <input
+                                type="number"
+                                value={prancha.width}
+                                onChange={(e) => {
+                                  const newPranchas = [...input.pranchas];
+                                  newPranchas[index].width = Number(e.target.value);
+                                  setInput({...input, pranchas: newPranchas});
+                                }}
+                                className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                                {input.cargoType === 'LOOSE' ? 'Alt. (cm)' : 'Alt. ULD (cm)'}
+                              </label>
+                              <input
+                                type="number"
+                                value={prancha.height}
+                                onChange={(e) => {
+                                  const newPranchas = [...input.pranchas];
+                                  newPranchas[index].height = Number(e.target.value);
+                                  setInput({...input, pranchas: newPranchas});
+                                }}
+                                className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="mb-4">
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Carga Especial (Segregação)</label>
+                            <select
+                              value={prancha.specialCargoType || 'NONE'}
+                              onChange={(e) => {
+                                const newPranchas = [...input.pranchas];
+                                newPranchas[index].specialCargoType = e.target.value as any;
+                                if (e.target.value !== 'ICE') {
+                                  newPranchas[index].iceWeight = undefined;
+                                }
+                                setInput({...input, pranchas: newPranchas});
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all"
+                            >
+                              <option value="NONE" className="bg-slate-50 dark:bg-slate-900">Nenhuma</option>
+                              <option value="ICE" className="bg-slate-50 dark:bg-slate-900">Gelo Seco (ICE)</option>
+                              <option value="AVI" className="bg-slate-50 dark:bg-slate-900">Animais Vivos (AVI)</option>
+                              <option value="DGR" className="bg-slate-50 dark:bg-slate-900">Carga Perigosa (DGR)</option>
+                              <option value="WET" className="bg-slate-50 dark:bg-slate-900">Carga Úmida (WET)</option>
+                              <option value="PER" className="bg-slate-50 dark:bg-slate-900">Perecível (PER)</option>
+                              <option value="HUM" className="bg-slate-50 dark:bg-slate-900">Restos Mortais (HUM)</option>
+                              <option value="VAL" className="bg-slate-50 dark:bg-slate-900">Carga Valiosa (VAL)</option>
+                              <option value="ELI" className="bg-slate-50 dark:bg-slate-900">Bateria de ion lítio (ELI)</option>
+                            </select>
+                            
+                            {['ICE', 'DGR', 'AVI', 'HUM', 'ELI'].includes(prancha.specialCargoType || '') && (
+                              <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-600 dark:text-amber-200 flex items-start gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" />
+                                <p><strong className="text-amber-500">Atenção:</strong> Esta carga requer emissão obrigatória de <strong>NOTOC</strong> (Notification to Captain) antes do voo.</p>
+                              </div>
+                            )}
 
                     {prancha.specialCargoType === 'ELI' && (
                       <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-600 dark:text-amber-200 flex items-start gap-1.5">
@@ -1176,10 +1444,13 @@ export default function Home() {
                     </div>
                   </motion.div>
                 </div>
-              );
-            })}
-              
-
+                        );
+                      })}
+                      </div>
+                    </motion.div>
+                  </div>
+                );
+              })})()}
             </div>
           </div>
         </div>
@@ -1199,12 +1470,23 @@ export default function Home() {
                   Manifesto Técnico
                 </h2>
               </div>
-              <div className={`px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-wider border ${
-                manifest.status === 'OK' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                manifest.status === 'ALERTA' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                'bg-[#e3004a]/10 text-[#e3004a] border-[#e3004a]/20'
-              }`}>
-                {manifest.status}
+              <div className="flex items-center gap-3">
+                {(manifest.status === 'OK' || manifest.status === 'ALERTA') && (
+                  <button 
+                    onClick={handleDownloadLIR}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-[#1b0088] hover:bg-[#1b0088]/90 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-all shadow-lg shadow-[#1b0088]/20 group"
+                  >
+                    <FileText className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                    Gerar LIR Dnata/LATAM
+                  </button>
+                )}
+                <div className={`px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-wider border ${
+                  manifest.status === 'OK' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                  manifest.status === 'ALERTA' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                  'bg-[#e3004a]/10 text-[#e3004a] border-[#e3004a]/20'
+                }`}>
+                  {manifest.status}
+                </div>
               </div>
             </div>
             
@@ -1481,12 +1763,14 @@ export default function Home() {
               )}
 
               <div className="flex items-center justify-between pt-5 border-t border-slate-200 dark:border-white/5">
-                <button 
-                  onClick={() => setShowJson(!showJson)}
-                  className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 px-3 py-1.5 rounded transition-colors border border-slate-200 dark:border-white/5"
-                >
-                  {showJson ? 'OCULTAR_JSON' : 'VER_JSON_API'}
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setShowJson(!showJson)}
+                    className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 px-3 py-1.5 rounded transition-colors border border-slate-200 dark:border-white/5"
+                  >
+                    {showJson ? 'OCULTAR_JSON' : 'VER_JSON_API'}
+                  </button>
+                </div>
                 <div className="text-right">
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">Assinatura Digital</p>
                   <div className="w-32 h-px bg-slate-200 dark:bg-white/10 mt-2 ml-auto"></div>

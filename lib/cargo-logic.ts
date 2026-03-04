@@ -235,6 +235,10 @@ export function generateManifest(input: CargoInput): ManifestResult {
     let totalLooseCubedWeight = 0;
     let maxOversizePos = 0;
 
+    let sequentialPos = 0;
+    let currentBinWeight = 0;
+    let currentBinCubed = 0;
+
     input.pranchas.forEach((p, index) => {
       const pranchaNum = index + 1;
       
@@ -244,6 +248,25 @@ export function generateManifest(input: CargoInput): ManifestResult {
       const cubedWeight = (p.length * p.width * p.height) / 6000;
       totalLooseCubedWeight += cubedWeight;
       
+      // Lógica de Bin Packing Sequencial (Alocação automática em nova posição)
+      // Se adicionar essa prancha estourar o limite da posição atual (e a posição não estiver vazia)
+      if ((currentBinWeight + p.weight > 900 || currentBinCubed + cubedWeight > 600) && (currentBinWeight > 0 || currentBinCubed > 0)) {
+         sequentialPos++; // Fecha a posição atual
+         currentBinWeight = 0;
+         currentBinCubed = 0;
+      }
+      
+      currentBinWeight += p.weight;
+      currentBinCubed += cubedWeight;
+      
+      // Se a prancha sozinha for maior que uma posição (ex: 1200kg)
+      // Ela vai consumir posições inteiras até sobrar o resto
+      while (currentBinWeight > 900 || currentBinCubed > 600) {
+         sequentialPos++;
+         currentBinWeight = Math.max(0, currentBinWeight - 900);
+         currentBinCubed = Math.max(0, currentBinCubed - 600);
+      }
+
       // Se for um único volume indivisível e for muito comprido, ele vai dar overlap físico inevitável
       if (p.volumes === 1 && p.length > 150) {
         const lengthPos = Math.ceil(p.length / 150);
@@ -326,30 +349,37 @@ export function generateManifest(input: CargoInput): ManifestResult {
       }
     });
 
-    // Cálculo final de posições baseado nos TOTAIS (Agregação)
+    // Adiciona a última posição se houver sobra
+    if (currentBinWeight > 0 || currentBinCubed > 0) {
+       sequentialPos++;
+    }
+
+    // Cálculo final de posições baseado nos TOTAIS (Agregação) - Apenas para referência no Breakdown
     const totalWeightPos = Math.ceil(totalLooseWeight / 900);
     const totalCubedPosCalc = Math.ceil(totalLooseCubedWeight / 600);
     
-    // A quantidade de posições é definida pelo maior limitante: Peso Real, Peso Cubado ou Restrição Física (Oversize)
+    // A quantidade de posições é definida pelo maior limitante: Bin Packing Sequencial ou Restrição Física (Oversize)
     // Garante no mínimo 1 posição se houver carga
-    posicoes = Math.max(totalWeightPos, totalCubedPosCalc, maxOversizePos, input.pranchas.length > 0 ? 1 : 0);
+    posicoes = Math.max(sequentialPos, maxOversizePos, input.pranchas.length > 0 ? 1 : 0);
     
     totalCubedPos = totalCubedPosCalc; // Para uso no alerta de cubagem global
 
     let limitingFactor: 'WEIGHT' | 'CUBAGE' | 'OVERSIZE' | 'MINIMUM' = 'MINIMUM';
-    if (posicoes === totalWeightPos && totalWeightPos > totalCubedPosCalc && totalWeightPos > maxOversizePos) {
-        limitingFactor = 'WEIGHT';
-    } else if (posicoes === totalCubedPosCalc && totalCubedPosCalc > totalWeightPos && totalCubedPosCalc > maxOversizePos) {
-        limitingFactor = 'CUBAGE';
-    } else if (posicoes === maxOversizePos && maxOversizePos > totalWeightPos && maxOversizePos > totalCubedPosCalc) {
+    if (posicoes === sequentialPos && sequentialPos > maxOversizePos) {
+        // Se a alocação sequencial definiu as posições, verificamos qual foi o fator que mais contribuiu
+        if (totalWeightPos >= totalCubedPosCalc) {
+            limitingFactor = 'WEIGHT';
+        } else {
+            limitingFactor = 'CUBAGE';
+        }
+    } else if (posicoes === maxOversizePos && maxOversizePos > sequentialPos) {
         limitingFactor = 'OVERSIZE';
     } else if (posicoes === 1 && input.pranchas.length > 0) {
         limitingFactor = 'MINIMUM';
     } else {
         // Tie-breaker or default
-        if (posicoes === totalWeightPos) limitingFactor = 'WEIGHT';
-        else if (posicoes === totalCubedPosCalc) limitingFactor = 'CUBAGE';
-        else if (posicoes === maxOversizePos) limitingFactor = 'OVERSIZE';
+        if (totalWeightPos >= totalCubedPosCalc) limitingFactor = 'WEIGHT';
+        else limitingFactor = 'CUBAGE';
     }
 
     calculationBreakdown = {
@@ -363,9 +393,9 @@ export function generateManifest(input: CargoInput): ManifestResult {
     };
 
     if (limitingFactor === 'WEIGHT') {
-        warnings.push(`INFO: Alocação definida pelo Peso Real.`);
+        warnings.push(`INFO: Alocação automática em novas posições baseada no Peso Real (Limite de 900kg/pos).`);
     } else if (limitingFactor === 'CUBAGE') {
-        warnings.push(`INFO: Alocação definida pela Cubagem.`);
+        warnings.push(`INFO: Alocação automática em novas posições baseada no Peso Cubado (Limite de 600kg/pos).`);
     } else if (limitingFactor === 'OVERSIZE') {
         warnings.push(`INFO: Alocação definida por restrição física de item Oversize.`);
     }
