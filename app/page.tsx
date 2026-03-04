@@ -57,6 +57,16 @@ export default function Home() {
   const [pranchaImages, setPranchaImages] = useState<Record<string, { file: File, preview: string }[]>>({});
   const [expandedPranchaIndex, setExpandedPranchaIndex] = useState<number>(0);
 
+  const [isDateInputFocused, setIsDateInputFocused] = useState(false);
+
+  // Helper to format date for display
+  const formatDateToBR = (isoDate: string) => {
+    if (!isoDate) return '';
+    const [year, month, day] = isoDate.split('-');
+    if (!year || !month || !day) return isoDate;
+    return `${day}/${month}/${year}`;
+  };
+
   // Derived state for manifest - prevents infinite loops
   const manifest = useMemo(() => {
     return generateManifest({ ...input, flightDate });
@@ -458,9 +468,12 @@ export default function Home() {
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Data do Voo</label>
                       <input
-                        type="date"
-                        value={selectedSearchDate}
+                        type={isDateInputFocused ? 'date' : 'text'}
+                        value={isDateInputFocused ? selectedSearchDate : formatDateToBR(selectedSearchDate)}
+                        onFocus={() => setIsDateInputFocused(true)}
+                        onBlur={() => setIsDateInputFocused(false)}
                         onChange={(e) => setSelectedSearchDate(e.target.value)}
+                        placeholder="DD/MM/YYYY"
                         className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
                       />
                     </div>
