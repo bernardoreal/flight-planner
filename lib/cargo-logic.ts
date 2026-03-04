@@ -103,6 +103,9 @@ export interface ManifestResult {
     bulk: number;
   };
   max_cargo_weight: number;
+  total_weight: number;
+  available_weight: number;
+  weight_usage_percent: number;
   dov_alert: string;
   calculationBreakdown?: CalculationBreakdown;
 }
@@ -147,12 +150,18 @@ export function generateManifest(input: CargoInput): ManifestResult {
       clsInfo: input.clsInfo,
       allocation: { fwd: 0, aft: 0, bulk: 0 },
       max_cargo_weight: 0,
+      total_weight: 0,
+      available_weight: 0,
+      weight_usage_percent: 0,
       dov_alert: ''
     };
   }
 
   const config = FLEET_CONFIG[input.aircraft];
   
+  // Calculate Max Cargo Weight early for validation
+  const max_cargo_weight = (config.cargoMax * 1134) + (config.hasBulk ? 1000 : 0); // Approx 1134kg per position (AKH limit) + Bulk
+
   // 3. Physical Constraints, Cubage & Positions
   let cubage_alert = false;
   let posicoes = 0;
@@ -166,6 +175,21 @@ export function generateManifest(input: CargoInput): ManifestResult {
   
   const totalWeight = input.pranchas.reduce((sum, p) => sum + p.weight, 0);
   const totalVolumes = input.pranchas.reduce((sum, p) => sum + p.volumes, 0);
+  
+  const available_weight = Math.max(0, max_cargo_weight - totalWeight);
+  const weight_usage_percent = max_cargo_weight > 0 ? totalWeight / max_cargo_weight : 0;
+
+  // Weight Limit Check
+  if (weight_usage_percent > 1) {
+    warnings.push(`CRÍTICO: Peso total (${totalWeight}kg) excede a capacidade estrutural de carga da aeronave (${max_cargo_weight}kg).`);
+    status = 'REJEITADO';
+  } else if (weight_usage_percent >= 0.9) {
+    warnings.push(`CRÍTICO: Peso total atingiu ${Math.round(weight_usage_percent * 100)}% da capacidade máxima (${max_cargo_weight}kg). Risco extremo de corte.`);
+    status = 'ALERTA';
+  } else if (weight_usage_percent >= 0.8) {
+    warnings.push(`ALERTA: Peso total atingiu ${Math.round(weight_usage_percent * 100)}% da capacidade máxima (${max_cargo_weight}kg).`);
+    status = 'ALERTA';
+  }
   
   // Rule 1: Barrow/Container Limit or ULD Limit
   if (input.cargoType === 'ULD') {
@@ -506,10 +530,16 @@ export function generateManifest(input: CargoInput): ManifestResult {
   let cg_impact = 'Neutro';
   let fuel_penalty = 'N/A';
   
-  if (input.cargoType === 'LOOSE' && totalCubedPos > config.cargoMax) {
-    cubage_alert = true;
-    warnings.push(`ALERTA DE CUBAGEM: O volume total da carga exige ${totalCubedPos} posições cubadas, excedendo a capacidade padrão de ${config.cargoMax} posições. Risco de corte de carga por falta de espaço físico.`);
-    if (status !== 'REJEITADO') status = 'ALERTA';
+  if (input.cargoType === 'LOOSE') {
+    if (totalCubedPos > config.totalPos) {
+       cubage_alert = true;
+       warnings.push(`CRÍTICO: Volume total (${totalCubedPos} pos) excede a capacidade física TOTAL da aeronave (${config.totalPos} pos). Impossível embarcar.`);
+       status = 'REJEITADO';
+    } else if (totalCubedPos > config.cargoMax) {
+       cubage_alert = true;
+       warnings.push(`ALERTA DE CUBAGEM: O volume total da carga exige ${totalCubedPos} posições cubadas, excedendo a capacidade padrão de ${config.cargoMax} posições. Risco de corte de carga por falta de espaço físico.`);
+       if (status !== 'REJEITADO') status = 'ALERTA';
+    }
   }
   
   if (input.cargoType === 'LOOSE' && posicoes > config.cargoMax) {
@@ -581,18 +611,19 @@ export function generateManifest(input: CargoInput): ManifestResult {
   warnings.push('MANDATÓRIO: Garantir amarração (Tie-down) conforme WBM para evitar deslocamento em voo.');
 
   // 8. DOV Alert & Max Weight
-  const max_cargo_weight = (config.cargoMax * 900) + (config.hasBulk ? 1000 : 0);
+  // max_cargo_weight is already calculated at the top
   let dov_alert = '';
   const totalRequestedPos = posicoes + bulk;
   
-  if (totalRequestedPos > 0) {
-    const usagePercent = totalRequestedPos / config.totalPos;
+  if (totalRequestedPos > 0 || totalWeight > 0) {
+    const posUsagePercent = config.totalPos > 0 ? totalRequestedPos / config.totalPos : 0;
+    const maxUsage = Math.max(posUsagePercent, weight_usage_percent);
     
-    if (usagePercent >= 0.5) {
-      if (usagePercent >= 0.8) {
-        dov_alert = `ALERTA DOV: Alto risco de corte de carga. Solicitando ${totalRequestedPos} de ${config.totalPos} posições totais (${Math.round(usagePercent * 100)}%). A aeronave requer posições e margem de peso para bagagens e combustível, o que impacta diretamente o balanceamento (CG). A aprovação final depende do Despachante Operacional de Voo (DOV).`;
+    if (maxUsage >= 0.7) {
+      if (maxUsage >= 0.9) {
+        dov_alert = `ALERTA DOV: Alto risco de corte de carga. Demanda de ${Math.round(maxUsage * 100)}% da capacidade (Posições ou Peso). A aeronave requer margem para bagagens e combustível, impactando o balanceamento (CG). Aprovação final depende do DOV.`;
       } else {
-        dov_alert = `AVISO DOV: Possibilidade de corte. Solicitando ${totalRequestedPos} de ${config.totalPos} posições totais (${Math.round(usagePercent * 100)}%). A aprovação final depende da equipe do DOV, considerando o peso/volume de bagagens e combustível.`;
+        dov_alert = `AVISO DOV: Possibilidade de corte. Demanda de ${Math.round(maxUsage * 100)}% da capacidade (Posições ou Peso). A aprovação final depende da equipe do DOV, considerando o peso/volume de bagagens e combustível.`;
       }
     }
   }
@@ -621,6 +652,9 @@ export function generateManifest(input: CargoInput): ManifestResult {
     clsInfo: input.clsInfo,
     allocation: { fwd, aft, bulk },
     max_cargo_weight,
+    total_weight: totalWeight,
+    available_weight,
+    weight_usage_percent,
     dov_alert,
     calculationBreakdown
   };

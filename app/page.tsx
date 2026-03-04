@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { motion } from 'motion/react';
 import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera, RectangleHorizontal, X, ImagePlus, ChevronDown, ChevronUp } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { AircraftType, CargoInput, ManifestResult, generateManifest, ULD_SPECS } from '@/lib/cargo-logic';
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 // MODELO ESCOLHIDO: Gemini 3 Flash (Recomendado para tarefas de texto/busca)
 const AI_MODEL = 'gemini-3-flash-preview';
@@ -45,7 +47,6 @@ export default function Home() {
     dgrTypes: [],
   });
 
-  const [manifest, setManifest] = useState<ManifestResult>(generateManifest(input));
   const [showJson, setShowJson] = useState(false);
   const [isLoadingFlight, setIsLoadingFlight] = useState(false);
   const [flightError, setFlightError] = useState('');
@@ -55,6 +56,11 @@ export default function Home() {
   const [isAnalyzingImage, setIsAnalyzingImage] = useState<number | null>(null);
   const [pranchaImages, setPranchaImages] = useState<Record<string, { file: File, preview: string }[]>>({});
   const [expandedPranchaIndex, setExpandedPranchaIndex] = useState<number>(0);
+
+  // Derived state for manifest - prevents infinite loops
+  const manifest = useMemo(() => {
+    return generateManifest({ ...input, flightDate });
+  }, [input, flightDate]);
 
   const togglePrancha = (index: number) => {
     setExpandedPranchaIndex(expandedPranchaIndex === index ? -1 : index);
@@ -91,12 +97,6 @@ export default function Home() {
       console.error('Failed to save input', e);
     }
   }, [input]);
-
-  // Real-time validation: Update manifest whenever input changes
-  useEffect(() => {
-    const result = generateManifest({ ...input, flightDate });
-    setManifest(result);
-  }, [input, flightDate]);
 
   // Helper to extract JSON from AI response
   const extractJSON = (text: string) => {
@@ -384,8 +384,28 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <header className="bg-[#1b0088] border-b border-[#1b0088]/80 shadow-md">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#050025] font-sans text-slate-900 dark:text-slate-100 relative overflow-hidden transition-colors duration-300">
+      {/* Decorative Background Elements */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 hidden dark:block">
+        {/* Deep Branded Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1b0088]/30 via-[#050025] to-[#e3004a]/20"></div>
+        
+        {/* Large Vibrant Brand Blobs */}
+        <div className="absolute -top-[10%] -left-[5%] w-[70%] h-[70%] rounded-full bg-gradient-to-br from-[#1b0088]/40 to-transparent blur-[160px] animate-pulse"></div>
+        <div className="absolute top-[10%] -right-[10%] w-[65%] h-[65%] rounded-full bg-gradient-to-bl from-[#e3004a]/35 to-transparent blur-[140px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute bottom-[-10%] left-[5%] w-[60%] h-[60%] rounded-full bg-gradient-to-tr from-[#1b0088]/30 to-transparent blur-[140px] animate-pulse" style={{ animationDelay: '4s' }}></div>
+        
+        {/* Technical Grid - High contrast on dark */}
+        <div className="absolute inset-0 opacity-[0.2]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 0.5px, transparent 0.5px), linear-gradient(90deg, rgba(255,255,255,0.05) 0.5px, transparent 0.5px)', backgroundSize: '50px 50px' }}></div>
+        
+        {/* Subtle Noise Texture */}
+        <div className="absolute inset-0 opacity-[0.08] mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"></div>
+        
+        {/* Soft Radial Vignette */}
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.6) 100%)' }}></div>
+      </div>
+
+      <header className="bg-[#1b0088]/95 backdrop-blur-md border-b border-[#1b0088]/80 shadow-md relative z-20 sticky top-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-white/10 p-2 rounded-lg">
@@ -403,18 +423,21 @@ export default function Home() {
             </span>
             <span className="hidden sm:flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> QA Certified</span>
             <span className="hidden sm:flex items-center gap-1.5"><CheckCircle className="w-4 h-4" /> System Online</span>
+            <div className="ml-2 pl-2 border-l border-white/20">
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10">
         {/* Input Form */}
         <div className="lg:col-span-6 flex flex-col gap-4 content-start">
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+          <div className="bg-white dark:bg-slate-900/60 backdrop-blur-md rounded-xl p-6 shadow-2xl border border-slate-200 dark:border-white/5 border-t-4 border-t-[#1b0088]">
             <div className="grid grid-cols-1 gap-8">
               {/* Left Column: Flight Parameters */}
               <div className="flex flex-col h-full">
-                <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-3">
+                <h2 className="text-base font-semibold mb-5 flex items-center gap-2 text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-white/5 pb-3">
                   <Plane className="w-4 h-4 text-[#1b0088]" />
                   Parâmetros do Voo
                 </h2>
@@ -422,23 +445,23 @@ export default function Home() {
                 <div className="mb-6 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Código do Voo</label>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Código do Voo</label>
                       <input
                         type="text"
                         value={input.flightCode}
                         onChange={(e) => setInput({ ...input, flightCode: e.target.value.toUpperCase() })}
                         onKeyDown={(e) => e.key === 'Enter' && handleFetchFlight()}
-                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
                         placeholder="Ex: LA3465"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Data do Voo</label>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Data do Voo</label>
                       <input
                         type="date"
                         value={selectedSearchDate}
                         onChange={(e) => setSelectedSearchDate(e.target.value)}
-                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
                       />
                     </div>
                   </div>
@@ -446,7 +469,7 @@ export default function Home() {
                   <button 
                     onClick={handleFetchFlight}
                     disabled={isLoadingFlight || !input.flightCode}
-                    className="w-full bg-[#e3004a] hover:bg-[#e3004a]/90 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    className="w-full bg-[#e3004a] hover:bg-[#e3004a]/90 active:scale-[0.98] shadow-lg shadow-[#e3004a]/20 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
                   >
                     {isLoadingFlight ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                     <span>Buscar Dados em Tempo Real</span>
@@ -459,20 +482,20 @@ export default function Home() {
                   )}
                 </div>
 
-                <div className="relative overflow-hidden bg-slate-50 border border-slate-200 rounded-xl p-4 mt-auto">
+                <div className="relative overflow-hidden bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-white/5 rounded-xl p-4 mt-auto">
                   {/* Decorative left accent */}
                   <div className={`absolute left-0 top-0 bottom-0 w-1 ${input.aircraft !== 'OTHER' && !flightError ? 'bg-emerald-500' : 'bg-[#e3004a]'}`}></div>
 
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pl-2">
                     <div className="flex items-center gap-2">
-                      <div className="bg-white p-1 rounded border border-slate-200">
-                        <Plane className="w-3.5 h-3.5 text-[#1b0088]" />
+                      <div className="bg-slate-200 dark:bg-slate-700/50 p-1 rounded border border-slate-300 dark:border-white/10">
+                        <Plane className="w-3.5 h-3.5 text-slate-800 dark:text-white" />
                       </div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Aeronave Detectada</p>
+                      <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Aeronave Detectada</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {flightSource === 'realtime_grounding' && (
-                        <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] px-2 py-1 rounded-md font-bold flex items-center gap-1.5 shadow-sm">
+                        <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] px-2 py-1 rounded-md font-bold flex items-center gap-1.5 shadow-sm">
                           <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -484,26 +507,26 @@ export default function Home() {
                   </div>
                   
                   <div className="grid grid-cols-1 gap-3 pl-2">
-                    <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col justify-between">
+                    <div className="bg-white dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-white/5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-1">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo</p>
+                        <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Modelo</p>
                         {input.aircraft !== 'OTHER' && !flightError && (
-                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded uppercase tracking-wider">Homologada</span>
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded uppercase tracking-wider">Homologada</span>
                         )}
                         {input.aircraft === 'OTHER' && !flightError && (
-                          <span className="text-[9px] font-bold text-[#e3004a] bg-[#e3004a]/5 border border-[#e3004a]/20 px-1.5 py-0.5 rounded uppercase tracking-wider">Não Homologada</span>
+                          <span className="text-[9px] font-bold text-[#e3004a] bg-[#e3004a]/10 border border-[#e3004a]/20 px-1.5 py-0.5 rounded uppercase tracking-wider">Não Homologada</span>
                         )}
                       </div>
-                      <span className={`text-2xl font-mono font-bold tracking-tight ${input.aircraft === 'OTHER' ? 'text-slate-400' : 'text-[#1b0088]'}`}>
+                      <span className={`text-2xl font-mono font-bold tracking-tight ${input.aircraft === 'OTHER' ? 'text-slate-700 dark:text-slate-400' : 'text-slate-900 dark:text-white'}`}>
                         {input.aircraft === 'OTHER' && flightError ? 'N/A' : input.aircraft}
                       </span>
                     </div>
                   </div>
 
                   {input.aiReasoning && (
-                    <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] text-indigo-800 flex gap-2">
+                    <div className="mt-4 p-3 bg-[#1b0088]/10 dark:bg-[#1b0088]/20 border border-[#1b0088]/20 dark:border-[#1b0088]/30 rounded-lg text-[11px] text-slate-600 dark:text-slate-300 flex gap-2">
                       <Info className="w-3.5 h-3.5 text-[#1b0088] shrink-0 mt-0.5" />
-                      <p><strong>Auditoria de Dados (Cross-Check):</strong> {input.aiReasoning}</p>
+                      <p><strong className="text-slate-900 dark:text-white">Auditoria de Dados (Cross-Check):</strong> {input.aiReasoning}</p>
                     </div>
                   )}
                 </div>
@@ -511,10 +534,10 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 col-span-1 lg:col-span-2">
-            <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
+          <div className="bg-white dark:bg-slate-900/60 backdrop-blur-md rounded-xl p-6 shadow-2xl border border-slate-200 dark:border-white/5 border-t-4 border-t-[#e3004a] col-span-1 lg:col-span-2">
+            <div className="flex justify-between items-center mb-5 border-b border-slate-200 dark:border-white/5 pb-3">
               <div className="flex items-center gap-4">
-                <h2 className="text-base font-semibold flex items-center gap-2 text-slate-800">
+                <h2 className="text-base font-semibold flex items-center gap-2 text-slate-900 dark:text-slate-100">
                   <ShieldAlert className="w-4 h-4 text-[#1b0088]" />
                   Especificações da Carga
                 </h2>
@@ -533,9 +556,9 @@ export default function Home() {
               </button>
             </div>
             
-              <div className="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+              <div className="mb-6 p-4 bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-white/5 rounded-xl">
                 <div className="mb-4">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                     <Package className="w-3.5 h-3.5" /> Tipo de Carga
                   </label>
                   <select
@@ -549,14 +572,14 @@ export default function Home() {
                         setInput({ ...input, cargoType: 'ULD', uldType: uldType });
                       }
                     }}
-                    className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all bg-white"
+                    className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all"
                   >
-                    <option value="LOOSE">Carga Solta (Loose)</option>
-                    <optgroup label="ULDs (Contêineres/Pallets)">
+                    <option value="LOOSE" className="bg-white dark:bg-slate-900">Carga Solta (Loose)</option>
+                    <optgroup label="ULDs (Contêineres/Pallets)" className="bg-white dark:bg-slate-900">
                       {Object.entries(ULD_SPECS)
                         .filter(([key]) => key !== 'NONE')
                         .map(([key, spec]) => (
-                          <option key={key} value={`ULD_${key}`}>
+                          <option key={key} value={`ULD_${key}`} className="bg-white dark:bg-slate-900">
                             {key} - {spec.description}
                           </option>
                         ))}
@@ -565,7 +588,7 @@ export default function Home() {
                 </div>
 
                 <div className="mb-4">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                       {input.cargoType === 'LOOSE' ? 'Quantidade de Pallets' : 'Quantidade de ULDs'}
                     </label>
                     <input
@@ -601,31 +624,31 @@ export default function Home() {
                         }
                         setInput({...input, pranchas: currentPranchas});
                       }}
-                      className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-white"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
                     />
                 </div>
 
-                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-4">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">
+                <div className="bg-white dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-white/5 shadow-sm mb-4">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 font-bold mb-1">
                       Resumo da Carga ({input.cargoType === 'LOOSE' ? 'Pallets' : 'ULDs'})
                     </p>
                     <div className="flex justify-between items-end gap-4">
                       <div>
-                        <span className="text-xs text-slate-500 block">
+                        <span className="text-xs text-slate-500 dark:text-slate-400 block">
                           {input.cargoType === 'LOOSE' ? 'Peso Real Total' : 'Peso Bruto Total (c/ Tara)'}
                         </span>
-                        <span className="text-lg font-bold text-slate-800 font-mono">
+                        <span className="text-lg font-bold text-slate-900 dark:text-white font-mono">
                           {input.pranchas.reduce((acc, p) => acc + p.weight, 0).toLocaleString('pt-BR')} kg
                         </span>
                       </div>
                       <div>
-                        <span className="text-xs text-slate-500 block">Volumes Totais</span>
-                        <span className="text-lg font-bold font-mono text-slate-800">
+                        <span className="text-xs text-slate-500 dark:text-slate-400 block">Volumes Totais</span>
+                        <span className="text-lg font-bold font-mono text-slate-900 dark:text-white">
                           {input.pranchas.reduce((acc, p) => acc + p.volumes, 0)}
                         </span>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs text-slate-500 block">
+                        <span className="text-xs text-slate-500 dark:text-slate-400 block">
                           {input.cargoType === 'LOOSE' ? 'Peso Cubado Total' : 'Peso Volumétrico (Fixo IATA)'}
                         </span>
                         {(() => {
@@ -689,19 +712,19 @@ export default function Home() {
               {input.pranchas.map((prancha, index) => {
                 const isExpanded = index === expandedPranchaIndex;
                 return (
-                <div key={prancha.id} className={`border border-slate-200 rounded-xl bg-slate-50 relative overflow-hidden transition-all ${isExpanded ? 'shadow-md ring-1 ring-indigo-100' : 'hover:bg-slate-100'}`}>
+                <div key={prancha.id} className={`border border-slate-200 dark:border-white/5 rounded-xl bg-slate-50 dark:bg-slate-800/40 relative overflow-hidden transition-all ${isExpanded ? 'shadow-2xl ring-1 ring-slate-300 dark:ring-white/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'}`}>
                     <div 
                       className="flex justify-between items-center p-4 cursor-pointer select-none"
                       onClick={() => togglePrancha(index)}
                     >
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
-                        <RectangleHorizontal className={`w-4 h-4 ${isExpanded ? 'text-[#1b0088]' : 'text-slate-400'}`} />
-                        <h3 className={`text-sm font-bold ${isExpanded ? 'text-slate-800' : 'text-slate-600'}`}>
+                        <RectangleHorizontal className={`w-4 h-4 ${isExpanded ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                        <h3 className={`text-sm font-bold ${isExpanded ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
                           {input.cargoType === 'LOOSE' ? 'Pallet' : 'ULD'} {index + 1}
                         </h3>
                         {!isExpanded && (
-                          <span className="text-xs text-slate-400 font-mono ml-2 border-l border-slate-300 pl-2">
+                          <span className="text-xs text-slate-500 dark:text-slate-400 font-mono ml-2 border-l border-slate-300 dark:border-white/5 pl-2">
                             {prancha.weight}kg | {prancha.volumes} vol
                           </span>
                         )}
@@ -709,15 +732,15 @@ export default function Home() {
                         {/* Special Cargo Badges */}
                         {prancha.specialCargoType && prancha.specialCargoType !== 'NONE' && (
                           <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                            prancha.specialCargoType === 'ICE' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
-                            prancha.specialCargoType === 'DGR' ? 'bg-red-100 text-red-700 border border-red-200' :
-                            prancha.specialCargoType === 'AVI' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-                            prancha.specialCargoType === 'ELI' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
-                            prancha.specialCargoType === 'WET' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' :
-                            prancha.specialCargoType === 'PER' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-                            prancha.specialCargoType === 'HUM' ? 'bg-slate-200 text-slate-700 border border-slate-300' :
-                            prancha.specialCargoType === 'VAL' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
-                            'bg-slate-100 text-slate-700 border border-slate-200'
+                            prancha.specialCargoType === 'ICE' ? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' :
+                            prancha.specialCargoType === 'DGR' ? 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800' :
+                            prancha.specialCargoType === 'AVI' ? 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800' :
+                            prancha.specialCargoType === 'ELI' ? 'bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800' :
+                            prancha.specialCargoType === 'WET' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800' :
+                            prancha.specialCargoType === 'PER' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' :
+                            prancha.specialCargoType === 'HUM' ? 'bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600' :
+                            prancha.specialCargoType === 'VAL' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800' :
+                            'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                           }`}>
                             {prancha.specialCargoType}
                           </span>
@@ -725,7 +748,7 @@ export default function Home() {
                         
                         {/* Oversize Badge */}
                         {prancha.hasOversize && (
-                           <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
+                           <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800">
                              OVERSIZE
                            </span>
                         )}
@@ -760,14 +783,21 @@ export default function Home() {
                     transition={{ duration: 0.3, ease: 'easeInOut' }}
                     className="overflow-hidden"
                   >
-                    <div className="p-4 pt-0 border-t border-slate-100">
+                    <div className="p-4 pt-0 border-t border-white/5">
 
                   {pranchaImages[prancha.id] && pranchaImages[prancha.id].length > 0 && (
-                    <div className="mb-4 bg-white p-3 rounded-lg border border-slate-200">
+                    <div className="mb-4 bg-slate-100 dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-white/5">
                       <div className="flex flex-wrap gap-2 mb-3">
                         {pranchaImages[prancha.id].map((img, imgIdx) => (
-                          <div key={imgIdx} className="relative w-16 h-16 rounded-md overflow-hidden border border-slate-200 group">
-                            <img src={img.preview} alt={`Foto ${imgIdx + 1}`} className="w-full h-full object-cover" />
+                          <div key={imgIdx} className="relative w-16 h-16 rounded-md overflow-hidden border border-slate-200 dark:border-white/10 group">
+                            <Image 
+                              src={img.preview} 
+                              alt={`Foto ${imgIdx + 1}`} 
+                              width={64}
+                              height={64}
+                              className="w-full h-full object-cover" 
+                              referrerPolicy="no-referrer"
+                            />
                             <button
                               onClick={() => handleRemoveImage(prancha.id, imgIdx)}
                               className="absolute top-0.5 right-0.5 bg-black/50 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
@@ -776,7 +806,7 @@ export default function Home() {
                             </button>
                           </div>
                         ))}
-                        <label className="w-16 h-16 rounded-md border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-600 cursor-pointer transition-colors bg-slate-50">
+                        <label className="w-16 h-16 rounded-md border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#1b0088] dark:hover:text-indigo-400 hover:border-[#1b0088] dark:hover:border-indigo-400 cursor-pointer transition-colors bg-slate-50 dark:bg-slate-900/50">
                           <ImagePlus className="w-5 h-5 mb-1" />
                           <span className="text-[10px] font-medium text-center leading-tight">Mais<br/>Fotos</span>
                           <input 
@@ -792,7 +822,7 @@ export default function Home() {
                       <button
                         onClick={() => handleAnalyzeImages(index, prancha.id)}
                         disabled={isAnalyzingImage === index}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        className="w-full bg-[#1b0088] hover:bg-[#1b0088]/90 disabled:bg-slate-700 text-white py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2"
                       >
                         {isAnalyzingImage === index ? (
                           <>
@@ -811,7 +841,7 @@ export default function Home() {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                         {input.cargoType === 'LOOSE' ? 'Peso (kg)' : 'Peso Bruto do ULD (kg)'}
                       </label>
                       <input
@@ -822,11 +852,11 @@ export default function Home() {
                           newPranchas[index].weight = Number(e.target.value);
                           setInput({...input, pranchas: newPranchas});
                         }}
-                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono bg-white"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                         {input.cargoType === 'LOOSE' ? 'Volumes (Unidades no Pallet)' : 'Volumes (Dentro do ULD)'}
                       </label>
                       <input
@@ -837,14 +867,14 @@ export default function Home() {
                           newPranchas[index].volumes = Number(e.target.value);
                           setInput({...input, pranchas: newPranchas});
                         }}
-                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono bg-white"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
                       />
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-3 gap-4 mb-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                         {input.cargoType === 'LOOSE' ? 'Comp. (cm)' : 'Comp. ULD (cm)'}
                       </label>
                       <input
@@ -855,11 +885,11 @@ export default function Home() {
                           newPranchas[index].length = Number(e.target.value);
                           setInput({...input, pranchas: newPranchas});
                         }}
-                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-white"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                         {input.cargoType === 'LOOSE' ? 'Larg. (cm)' : 'Larg. ULD (cm)'}
                       </label>
                       <input
@@ -870,11 +900,11 @@ export default function Home() {
                           newPranchas[index].width = Number(e.target.value);
                           setInput({...input, pranchas: newPranchas});
                         }}
-                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-white"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                         {input.cargoType === 'LOOSE' ? 'Alt. (cm)' : 'Alt. ULD (cm)'}
                       </label>
                       <input
@@ -885,13 +915,13 @@ export default function Home() {
                           newPranchas[index].height = Number(e.target.value);
                           setInput({...input, pranchas: newPranchas});
                         }}
-                        className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-white"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
                       />
                     </div>
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Carga Especial (Segregação)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Carga Especial (Segregação)</label>
                     <select
                       value={prancha.specialCargoType || 'NONE'}
                       onChange={(e) => {
@@ -902,30 +932,30 @@ export default function Home() {
                         }
                         setInput({...input, pranchas: newPranchas});
                       }}
-                      className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all bg-white"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all"
                     >
-                      <option value="NONE">Nenhuma</option>
-                      <option value="ICE">Gelo Seco (ICE)</option>
-                      <option value="AVI">Animais Vivos (AVI)</option>
-                      <option value="DGR">Carga Perigosa (DGR)</option>
-                      <option value="WET">Carga Úmida (WET)</option>
-                      <option value="PER">Perecível (PER)</option>
-                      <option value="HUM">Restos Mortais (HUM)</option>
-                      <option value="VAL">Carga Valiosa (VAL)</option>
-                      <option value="ELI">Bateria de ion lítio (ELI)</option>
+                      <option value="NONE" className="bg-slate-50 dark:bg-slate-900">Nenhuma</option>
+                      <option value="ICE" className="bg-slate-50 dark:bg-slate-900">Gelo Seco (ICE)</option>
+                      <option value="AVI" className="bg-slate-50 dark:bg-slate-900">Animais Vivos (AVI)</option>
+                      <option value="DGR" className="bg-slate-50 dark:bg-slate-900">Carga Perigosa (DGR)</option>
+                      <option value="WET" className="bg-slate-50 dark:bg-slate-900">Carga Úmida (WET)</option>
+                      <option value="PER" className="bg-slate-50 dark:bg-slate-900">Perecível (PER)</option>
+                      <option value="HUM" className="bg-slate-50 dark:bg-slate-900">Restos Mortais (HUM)</option>
+                      <option value="VAL" className="bg-slate-50 dark:bg-slate-900">Carga Valiosa (VAL)</option>
+                      <option value="ELI" className="bg-slate-50 dark:bg-slate-900">Bateria de ion lítio (ELI)</option>
                     </select>
                     
                     {['ICE', 'DGR', 'AVI', 'HUM', 'ELI'].includes(prancha.specialCargoType || '') && (
-                      <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 flex items-start gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        <p><strong>Atenção:</strong> Esta carga requer emissão obrigatória de <strong>NOTOC</strong> (Notification to Captain) antes do voo.</p>
+                      <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-600 dark:text-amber-200 flex items-start gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" />
+                        <p><strong className="text-amber-500">Atenção:</strong> Esta carga requer emissão obrigatória de <strong>NOTOC</strong> (Notification to Captain) antes do voo.</p>
                       </div>
                     )}
 
                     {prancha.specialCargoType === 'ELI' && (
-                      <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 flex items-start gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        <p><strong>Atenção:</strong> Verificar etiqueta de Bateria de Lítio (Lithium Battery Mark) e limites por volume.</p>
+                      <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-600 dark:text-amber-200 flex items-start gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" />
+                        <p><strong className="text-amber-500">Atenção:</strong> Verificar etiqueta de Bateria de Lítio (Lithium Battery Mark) e limites por volume.</p>
                       </div>
                     )}
                   </div>
@@ -934,9 +964,9 @@ export default function Home() {
                     <motion.div 
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
-                      className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg"
+                      className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg"
                     >
-                      <label className="block text-xs font-semibold text-blue-800 uppercase tracking-wider mb-1.5">Peso Total de Gelo Seco (kg)</label>
+                      <label className="block text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1.5">Peso Total de Gelo Seco (kg)</label>
                       <input
                         type="number"
                         value={prancha.iceWeight || ''}
@@ -946,7 +976,7 @@ export default function Home() {
                           setInput({...input, pranchas: newPranchas});
                         }}
                         placeholder="Ex: 50"
-                        className="w-full p-2.5 text-sm rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono bg-white"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono"
                       />
                     </motion.div>
                   )}
@@ -955,11 +985,11 @@ export default function Home() {
                     <motion.div 
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
-                      className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg"
+                      className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg"
                     >
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-semibold text-red-800 uppercase tracking-wider mb-1.5">Classe DGR</label>
+                          <label className="block text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1.5">Classe DGR</label>
                           <select
                             value={prancha.dgrClass || ''}
                             onChange={(e) => {
@@ -967,28 +997,28 @@ export default function Home() {
                               newPranchas[index].dgrClass = e.target.value;
                               setInput({...input, pranchas: newPranchas});
                             }}
-                            className="w-full p-2.5 text-sm rounded-lg border border-red-200 focus:ring-2 focus:ring-red-500 outline-none transition-all bg-white"
+                            className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
                           >
-                            <option value="">Selecione...</option>
-                            <option value="1">Classe 1 - Explosivos</option>
-                            <option value="2.1">Classe 2.1 - Gás Inflamável</option>
-                            <option value="2.2">Classe 2.2 - Gás Não Inflamável</option>
-                            <option value="2.3">Classe 2.3 - Gás Tóxico</option>
-                            <option value="3">Classe 3 - Líquidos Inflamáveis</option>
-                            <option value="4.1">Classe 4.1 - Sólidos Inflamáveis</option>
-                            <option value="4.2">Classe 4.2 - Combustão Espontânea</option>
-                            <option value="4.3">Classe 4.3 - Perigoso Quando Molhado</option>
-                            <option value="5.1">Classe 5.1 - Oxidante</option>
-                            <option value="5.2">Classe 5.2 - Peróxido Orgânico</option>
-                            <option value="6.1">Classe 6.1 - Tóxico</option>
-                            <option value="6.2">Classe 6.2 - Substância Infecciosa</option>
-                            <option value="7">Classe 7 - Radioativo</option>
-                            <option value="8">Classe 8 - Corrosivo</option>
-                            <option value="9">Classe 9 - Miscelânea</option>
+                            <option value="" className="bg-slate-50 dark:bg-slate-900">Selecione...</option>
+                            <option value="1" className="bg-slate-50 dark:bg-slate-900">Classe 1 - Explosivos</option>
+                            <option value="2.1" className="bg-slate-50 dark:bg-slate-900">Classe 2.1 - Gás Inflamável</option>
+                            <option value="2.2" className="bg-slate-50 dark:bg-slate-900">Classe 2.2 - Gás Não Inflamável</option>
+                            <option value="2.3" className="bg-slate-50 dark:bg-slate-900">Classe 2.3 - Gás Tóxico</option>
+                            <option value="3" className="bg-slate-50 dark:bg-slate-900">Classe 3 - Líquidos Inflamáveis</option>
+                            <option value="4.1" className="bg-slate-50 dark:bg-slate-900">Classe 4.1 - Sólidos Inflamáveis</option>
+                            <option value="4.2" className="bg-slate-50 dark:bg-slate-900">Classe 4.2 - Combustão Espontânea</option>
+                            <option value="4.3" className="bg-slate-50 dark:bg-slate-900">Classe 4.3 - Perigoso Quando Molhado</option>
+                            <option value="5.1" className="bg-slate-50 dark:bg-slate-900">Classe 5.1 - Oxidante</option>
+                            <option value="5.2" className="bg-slate-50 dark:bg-slate-900">Classe 5.2 - Peróxido Orgânico</option>
+                            <option value="6.1" className="bg-slate-50 dark:bg-slate-900">Classe 6.1 - Tóxico</option>
+                            <option value="6.2" className="bg-slate-50 dark:bg-slate-900">Classe 6.2 - Substância Infecciosa</option>
+                            <option value="7" className="bg-slate-50 dark:bg-slate-900">Classe 7 - Radioativo</option>
+                            <option value="8" className="bg-slate-50 dark:bg-slate-900">Classe 8 - Corrosivo</option>
+                            <option value="9" className="bg-slate-50 dark:bg-slate-900">Classe 9 - Miscelânea</option>
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-red-800 uppercase tracking-wider mb-1.5">Grupo de Embalagem</label>
+                          <label className="block text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1.5">Grupo de Embalagem</label>
                           <select
                             value={prancha.dgrPackingGroup || 'N/A'}
                             onChange={(e) => {
@@ -996,12 +1026,12 @@ export default function Home() {
                               newPranchas[index].dgrPackingGroup = e.target.value as any;
                               setInput({...input, pranchas: newPranchas});
                             }}
-                            className="w-full p-2.5 text-sm rounded-lg border border-red-200 focus:ring-2 focus:ring-red-500 outline-none transition-all bg-white"
+                            className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
                           >
-                            <option value="N/A">N/A</option>
-                            <option value="I">I (Alto Perigo)</option>
-                            <option value="II">II (Médio Perigo)</option>
-                            <option value="III">III (Baixo Perigo)</option>
+                            <option value="N/A" className="bg-slate-50 dark:bg-slate-900">N/A</option>
+                            <option value="I" className="bg-slate-50 dark:bg-slate-900">I (Alto Perigo)</option>
+                            <option value="II" className="bg-slate-50 dark:bg-slate-900">II (Médio Perigo)</option>
+                            <option value="III" className="bg-slate-50 dark:bg-slate-900">III (Baixo Perigo)</option>
                           </select>
                         </div>
                       </div>
@@ -1009,7 +1039,7 @@ export default function Home() {
                   )}
 
                   <div className="pt-2">
-                    <label className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors bg-white">
+                    <label className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-white/5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors bg-slate-50 dark:bg-slate-800/40">
                       <input 
                         type="checkbox" 
                         checked={prancha.hasOversize} 
@@ -1023,20 +1053,20 @@ export default function Home() {
                           newPranchas[index].oversizeHeight = e.target.checked ? 100 : 0;
                           setInput({...input, pranchas: newPranchas});
                         }} 
-                        className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088]" 
+                        className="w-4 h-4 text-[#1b0088] rounded focus:ring-[#1b0088] bg-white dark:bg-slate-700 border-slate-300 dark:border-white/10" 
                       />
-                      <span className="text-sm font-medium text-slate-700">Contém itens Oversize (Requer Overlap Físico)</span>
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Contém itens Oversize (Requer Overlap Físico)</span>
                     </label>
                     
                     {prancha.hasOversize && (
                       <motion.div 
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
-                        className="mt-3 p-4 bg-white rounded-lg border border-slate-200"
+                        className="mt-3 p-4 bg-slate-100 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-white/5"
                       >
                         <div className="grid grid-cols-2 gap-4 mb-4">
                           <div>
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Qtd. Vols Oversize</label>
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Qtd. Vols Oversize</label>
                             <input
                               type="number"
                               value={prancha.oversizeVolumes}
@@ -1046,11 +1076,11 @@ export default function Home() {
                                 setInput({...input, pranchas: newPranchas});
                               }}
                               min="1"
-                              className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                              className="w-full bg-white dark:bg-slate-900/50 p-2.5 text-sm rounded-lg border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Peso Oversize (kg)</label>
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Peso Oversize (kg)</label>
                             <input
                               type="number"
                               value={prancha.oversizeWeight}
@@ -1060,14 +1090,14 @@ export default function Home() {
                                 setInput({...input, pranchas: newPranchas});
                               }}
                               min="1"
-                              className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                              className="w-full bg-white dark:bg-slate-900/50 p-2.5 text-sm rounded-lg border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-3 gap-4">
                           <div>
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Comp. (cm)</label>
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Comp. (cm)</label>
                             <input
                               type="number"
                               value={prancha.oversizeLength || ''}
@@ -1076,11 +1106,11 @@ export default function Home() {
                                 newPranchas[index].oversizeLength = Number(e.target.value);
                                 setInput({...input, pranchas: newPranchas});
                               }}
-                              className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                              className="w-full bg-white dark:bg-slate-900/50 p-2.5 text-sm rounded-lg border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Larg. (cm)</label>
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Larg. (cm)</label>
                             <input
                               type="number"
                               value={prancha.oversizeWidth || ''}
@@ -1089,11 +1119,11 @@ export default function Home() {
                                 newPranchas[index].oversizeWidth = Number(e.target.value);
                                 setInput({...input, pranchas: newPranchas});
                               }}
-                              className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                              className="w-full bg-white dark:bg-slate-900/50 p-2.5 text-sm rounded-lg border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Alt. (cm)</label>
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Alt. (cm)</label>
                             <input
                               type="number"
                               value={prancha.oversizeHeight || ''}
@@ -1102,7 +1132,7 @@ export default function Home() {
                                 newPranchas[index].oversizeHeight = Number(e.target.value);
                                 setInput({...input, pranchas: newPranchas});
                               }}
-                              className="w-full p-2.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono bg-slate-50"
+                              className="w-full bg-white dark:bg-slate-900/50 p-2.5 text-sm rounded-lg border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all font-mono"
                             />
                           </div>
                         </div>
@@ -1125,13 +1155,13 @@ export default function Home() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-[#0f172a] rounded-xl shadow-xl overflow-hidden border border-slate-800"
+            className="bg-white dark:bg-slate-900/60 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden border border-slate-200 dark:border-white/5 border-t-4 border-t-[#e3004a]"
           >
             {/* Header Bar */}
-            <div className="bg-[#1e293b] px-6 py-4 border-b border-slate-700 flex justify-between items-center">
+            <div className="bg-slate-100 dark:bg-slate-800/80 px-6 py-4 border-b border-slate-200 dark:border-white/5 flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                <h2 className="text-sm font-mono font-bold text-slate-200 tracking-widest uppercase">
+                <h2 className="text-sm font-mono font-bold text-slate-900 dark:text-slate-100 tracking-widest uppercase">
                   Manifesto Técnico
                 </h2>
               </div>
@@ -1145,22 +1175,54 @@ export default function Home() {
             </div>
             
             {/* Content */}
-            <div className="p-6 text-slate-300">
+            <div className="p-6 text-slate-700 dark:text-slate-200">
+
+              {/* Status Banner */}
+              <div className={`mb-6 p-4 rounded-xl border flex items-center gap-4 ${
+                manifest.status === 'OK' ? 'bg-emerald-500/10 border-emerald-500/20' :
+                manifest.status === 'ALERTA' ? 'bg-amber-500/10 border-amber-500/20' :
+                'bg-[#e3004a]/10 border-[#e3004a]/20'
+              }`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                  manifest.status === 'OK' ? 'bg-emerald-500 text-white' :
+                  manifest.status === 'ALERTA' ? 'bg-amber-500 text-white' :
+                  'bg-[#e3004a] text-white'
+                }`}>
+                  {manifest.status === 'OK' ? <CheckCircle className="w-6 h-6" /> : <AlertTriangle className="w-6 h-6" />}
+                </div>
+                <div>
+                  <h3 className={`text-lg font-bold ${
+                    manifest.status === 'OK' ? 'text-emerald-600 dark:text-emerald-400' :
+                    manifest.status === 'ALERTA' ? 'text-amber-600 dark:text-amber-400' :
+                    'text-[#e3004a]'
+                  }`}>
+                    {manifest.status === 'OK' ? 'MANIFESTO APROVADO' :
+                     manifest.status === 'ALERTA' ? 'APROVADO COM RESTRIÇÕES' :
+                     'MANIFESTO REJEITADO'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {manifest.status === 'OK' ? 'Voo liberado para despacho operacional.' :
+                     manifest.status === 'ALERTA' ? 'Requer atenção do Supervisor/DOV. Verifique os avisos abaixo.' :
+                     'Violação de parâmetros críticos de segurança. Embarque proibido.'}
+                  </p>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-[#1e293b]/50 rounded-lg p-4 border border-slate-700/50">
+                <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4 border border-slate-200 dark:border-white/5">
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">Voo / Rota / Aeronave</p>
-                  <p className="text-lg font-mono font-bold text-slate-100">{manifest.flight_info.code} <span className="text-slate-600">|</span> {manifest.flight_info.route}</p>
-                  <p className="text-xs font-mono text-slate-400 mt-1">{manifest.flight_info.aircraft} <span className="text-slate-600">|</span> <span className="text-emerald-400">{manifest.flight_info.date}</span></p>
+                  <p className="text-lg font-mono font-bold text-slate-900 dark:text-white">{manifest.flight_info.code} <span className="text-slate-400 dark:text-slate-700">|</span> {manifest.flight_info.route}</p>
+                  <p className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-1">{manifest.flight_info.aircraft} <span className="text-slate-400 dark:text-slate-700">|</span> <span className="text-emerald-500 dark:text-emerald-400">{manifest.flight_info.date}</span></p>
                   {manifest.clsInfo && (
-                    <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-start gap-2">
-                      <Info className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
-                      <p className="text-[10px] font-mono text-blue-300 leading-relaxed">{manifest.clsInfo}</p>
+                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-white/5 flex items-start gap-2">
+                      <Info className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
+                      <p className="text-[10px] font-mono text-blue-600 dark:text-blue-300 leading-relaxed">{manifest.clsInfo}</p>
                     </div>
                   )}
                 </div>
-                <div className="bg-[#1e293b]/50 rounded-lg p-4 border border-slate-700/50">
+                <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4 border border-slate-200 dark:border-white/5">
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">Estabilidade</p>
-                  <p className={`text-sm font-mono font-bold ${manifest.stability.includes('ALERTA') ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  <p className={`text-sm font-mono font-bold ${manifest.stability.includes('ALERTA') ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-500 dark:text-emerald-400'}`}>
                     {manifest.stability}
                   </p>
                 </div>
@@ -1168,12 +1230,12 @@ export default function Home() {
 
               {/* Door Check Section */}
               {manifest.door_checks && manifest.door_checks.length > 0 && (
-                <div className="mb-6 bg-[#1e293b]/50 rounded-lg p-4 border border-slate-700/50">
+                <div className="mb-6 bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4 border border-slate-200 dark:border-white/5">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                    <p className="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
                       <RectangleHorizontal className="w-3.5 h-3.5" /> Verificação de Porta (Door Check)
                     </p>
-                    <span className="text-[10px] font-mono text-slate-500">
+                    <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
                       Porta: {manifest.door_checks[0].doorDims.w}x{manifest.door_checks[0].doorDims.h}cm
                     </span>
                   </div>
@@ -1184,8 +1246,8 @@ export default function Home() {
                         <div className="flex items-center gap-3">
                           <div className={`w-1.5 h-1.5 rounded-full ${check.passed ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
                           <div>
-                            <p className="text-xs font-mono text-slate-300">
-                              <span className="text-slate-500 mr-2">#{check.pranchaIndex}</span>
+                            <p className="text-xs font-mono text-slate-300 dark:text-slate-400">
+                              <span className="text-slate-500 dark:text-slate-500 mr-2">#{check.pranchaIndex}</span>
                               {check.pieceDims.join('x')}cm
                             </p>
                             {!check.passed && (
@@ -1216,60 +1278,74 @@ export default function Home() {
                 <div className="bg-amber-500/10 rounded-lg p-4 border border-amber-500/30 mb-6 flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-1">Alerta de Cubagem</h4>
-                    <p className="text-xs font-mono text-amber-200/80 leading-relaxed">
+                    <h4 className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest mb-1">Alerta de Cubagem</h4>
+                    <p className="text-xs font-mono text-amber-700 dark:text-amber-200/80 leading-relaxed">
                       O volume total da carga excede a capacidade padrão do porão. Há um alto risco de corte de carga por falta de espaço físico, mesmo que o peso esteja dentro dos limites.
                     </p>
                   </div>
                 </div>
               )}
 
-              <div className="bg-[#1e293b]/30 rounded-lg p-5 border border-slate-700/50 mb-6">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4 border-b border-slate-700/50 pb-2">Veredito Operacional</h3>
+              <div className="bg-slate-50 dark:bg-slate-800/30 rounded-lg p-5 border border-slate-200 dark:border-white/5 mb-6">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-4 border-b border-slate-200 dark:border-white/5 pb-2">Veredito Operacional</h3>
                 
                 <div className="space-y-3 font-mono text-sm">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Posições Necessárias:</span>
-                    <span className="font-bold text-slate-100">{manifest.posicoes} <span className="text-[10px] text-slate-500 font-sans font-normal ml-2">(Peso/Volume/Overlap)</span></span>
+                    <span className="text-slate-600 dark:text-slate-400">Posições Necessárias:</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100">{manifest.posicoes} <span className="text-[10px] text-slate-500 dark:text-slate-500 font-sans font-normal ml-2">(Peso/Volume/Overlap)</span></span>
+                  </div>
+                  <div className="flex flex-col gap-1 pt-2 pb-2 border-y border-slate-200 dark:border-white/5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400">Capacidade de Peso (Carga):</span>
+                      <span className={`font-bold ${manifest.weight_usage_percent >= 0.9 ? 'text-[#e3004a]' : manifest.weight_usage_percent >= 0.8 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {manifest.total_weight.toLocaleString('pt-BR')} / {manifest.max_cargo_weight.toLocaleString('pt-BR')} kg
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
+                      <div 
+                        className={`h-full transition-all duration-500 ${manifest.weight_usage_percent >= 0.9 ? 'bg-[#e3004a]' : manifest.weight_usage_percent >= 0.8 ? 'bg-amber-400' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min(100, manifest.weight_usage_percent * 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">Utilizado: {Math.round(manifest.weight_usage_percent * 100)}%</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">Livre: {manifest.available_weight.toLocaleString('pt-BR')} kg</span>
+                    </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Peso Máx. Estimado (Carga):</span>
-                    <span className="font-bold text-emerald-400">{manifest.max_cargo_weight.toLocaleString('pt-BR')} kg <span className="text-[10px] text-slate-500 font-sans font-normal ml-2">(Capacidade Teórica)</span></span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Alocação Sugerida:</span>
-                    <span className="font-bold text-slate-100">
+                    <span className="text-slate-600 dark:text-slate-400">Alocação Sugerida:</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100">
                       {manifest.allocation.fwd} FWD / {manifest.allocation.aft} AFT / {manifest.allocation.bulk} BULK
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Disponibilidade Líquida:</span>
-                    <span className={`font-bold ${manifest.netAvailability < 0 ? 'text-[#e3004a]' : 'text-emerald-400'}`}>
+                    <span className="text-slate-600 dark:text-slate-400">Disponibilidade Líquida:</span>
+                    <span className={`font-bold ${manifest.netAvailability < 0 ? 'text-[#e3004a]' : 'text-emerald-600 dark:text-emerald-400'}`}>
                       {manifest.netAvailability} Posições Restantes
                     </span>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-700/50">
-                    <span className="text-slate-400">Impacto CG (Qualitativo):</span>
-                    <span className="text-emerald-400 text-right max-w-[60%] text-xs">{manifest.cg_impact}</span>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-white/5">
+                    <span className="text-slate-600 dark:text-slate-400">Impacto CG (Qualitativo):</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 text-right max-w-[60%] text-xs">{manifest.cg_impact}</span>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-700/50">
-                    <span className="text-slate-400">Fuel Penalty:</span>
-                    <span className="text-emerald-400 text-right max-w-[60%] text-xs">{manifest.fuel_penalty}</span>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-white/5">
+                    <span className="text-slate-600 dark:text-slate-400">Fuel Penalty:</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 text-right max-w-[60%] text-xs">{manifest.fuel_penalty}</span>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-700/50">
-                    <span className="text-slate-400">Otimização ESG:</span>
-                    <span className="text-emerald-400 text-right max-w-[60%] text-xs">{manifest.esg_impact}</span>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-white/5">
+                    <span className="text-slate-600 dark:text-slate-400">Otimização ESG:</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 text-right max-w-[60%] text-xs">{manifest.esg_impact}</span>
                   </div>
                 </div>
               </div>
 
               {manifest.dov_alert && (
                 <div className={`rounded-lg p-5 border mb-6 ${manifest.dov_alert.includes('ALERTA') ? 'bg-[#e3004a]/10 border-[#e3004a]/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
-                  <h3 className={`text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2 ${manifest.dov_alert.includes('ALERTA') ? 'text-[#e3004a]' : 'text-amber-500'}`}>
+                  <h3 className={`text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2 ${manifest.dov_alert.includes('ALERTA') ? 'text-[#e3004a]' : 'text-amber-600 dark:text-amber-500'}`}>
                     <AlertTriangle className="w-3.5 h-3.5" />
                     Aviso de Despacho (DOV)
                   </h3>
-                  <p className={`text-xs font-mono leading-relaxed ${manifest.dov_alert.includes('ALERTA') ? 'text-slate-200 font-bold' : 'text-slate-300'}`}>
+                  <p className={`text-xs font-mono leading-relaxed ${manifest.dov_alert.includes('ALERTA') ? 'text-slate-700 dark:text-slate-200 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
                     {manifest.dov_alert}
                   </p>
                 </div>
@@ -1285,7 +1361,7 @@ export default function Home() {
                     {manifest.dgr_alerts.map((alert, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-xs font-mono">
                         <span className="text-[#e3004a] mt-0.5">{'>'}</span>
-                        <span className="text-slate-300 leading-relaxed font-bold">{alert}</span>
+                        <span className="text-slate-700 dark:text-slate-300 leading-relaxed font-bold">{alert}</span>
                       </li>
                     ))}
                   </ul>
@@ -1293,58 +1369,57 @@ export default function Home() {
               )}
 
               {manifest.calculationBreakdown && (
-                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 mb-6">
-                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                <div className="bg-slate-100 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-white/5 mb-6">
+                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-3 flex items-center gap-2">
                       <RectangleHorizontal className="w-3.5 h-3.5" />
                       Detalhamento do Cálculo de Posições
                    </h4>
                    <div className="grid grid-cols-3 gap-3">
-                      <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-slate-800/50 border-slate-700/50'}`}>
+                      <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'bg-[#1b0088]/10 dark:bg-[#1b0088]/20 border-[#1b0088]/30 dark:border-[#1b0088]/40' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-white/5'}`}>
                          <div>
-                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-indigo-400' : 'text-slate-500'}`}>Peso Real</span>
-                           <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-indigo-300' : 'text-slate-300'}`}>
+                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500'}`}>Peso Real</span>
+                           <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
                              {manifest.calculationBreakdown.totalRealWeight.toLocaleString('pt-BR')} kg
                            </span>
                          </div>
-                         <div className="mt-2 pt-2 border-t border-white/5">
-                           <span className={`block text-[10px] font-mono ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-indigo-400' : 'text-slate-500'}`}>
-                             Requer <strong className={manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-indigo-300' : 'text-slate-400'}>{manifest.calculationBreakdown.totalRealPos}</strong> pos
+                         <div className="mt-2 pt-2 border-t border-slate-200 dark:border-white/5">
+                           <span className={`block text-[10px] font-mono ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500'}`}>
+                             Requer <strong className={manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}>{manifest.calculationBreakdown.totalRealPos}</strong> pos
                            </span>
                          </div>
                       </div>
                       
-                      <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-slate-800/50 border-slate-700/50'}`}>
+                      <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'bg-[#1b0088]/10 dark:bg-[#1b0088]/20 border-[#1b0088]/30 dark:border-[#1b0088]/40' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-white/5'}`}>
                          <div>
-                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-indigo-400' : 'text-slate-500'}`}>Peso Cubado</span>
-                           <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-indigo-300' : 'text-slate-300'}`}>
+                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500'}`}>Peso Cubado</span>
+                           <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
                              {Math.round(manifest.calculationBreakdown.totalCubedWeight).toLocaleString('pt-BR')} kg
                            </span>
                          </div>
-                         <div className="mt-2 pt-2 border-t border-white/5">
-                           <span className={`block text-[10px] font-mono ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-indigo-400' : 'text-slate-500'}`}>
-                             Requer <strong className={manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-indigo-300' : 'text-slate-400'}>{manifest.calculationBreakdown.totalCubedPos}</strong> pos
+                         <div className="mt-2 pt-2 border-t border-slate-200 dark:border-white/5">
+                           <span className={`block text-[10px] font-mono ${manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500'}`}>
+                             Requer <strong className={manifest.calculationBreakdown.limitingFactor === 'CUBAGE' ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}>{manifest.calculationBreakdown.totalCubedPos}</strong> pos
                            </span>
                          </div>
                       </div>
-                      
-                      <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-slate-800/50 border-slate-700/50'}`}>
+                                            <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'bg-[#1b0088]/10 dark:bg-[#1b0088]/20 border-[#1b0088]/30 dark:border-[#1b0088]/40' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-white/5'}`}>
                          <div>
-                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-indigo-400' : 'text-slate-500'}`}>Oversize</span>
-                           <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-indigo-300' : 'text-slate-300'}`}>
+                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500'}`}>Oversize</span>
+                           <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
                              Restrição Física
                            </span>
                          </div>
-                         <div className="mt-2 pt-2 border-t border-white/5">
-                           <span className={`block text-[10px] font-mono ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-indigo-400' : 'text-slate-500'}`}>
-                             Requer <strong className={manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-indigo-300' : 'text-slate-400'}>{manifest.calculationBreakdown.oversizePos}</strong> pos
+                         <div className="mt-2 pt-2 border-t border-slate-200 dark:border-white/5">
+                           <span className={`block text-[10px] font-mono ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500'}`}>
+                             Requer <strong className={manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}>{manifest.calculationBreakdown.oversizePos}</strong> pos
                            </span>
                          </div>
                       </div>
                    </div>
                    
-                   <div className="mt-3 pt-3 border-t border-slate-700/50 flex justify-between items-center">
+                   <div className="mt-3 pt-3 border-t border-slate-200 dark:border-white/5 flex justify-between items-center">
                       <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Fator Limitante:</span>
-                      <span className="text-xs font-bold text-indigo-400 font-mono uppercase">
+                      <span className="text-xs font-bold text-[#1b0088] dark:text-indigo-400 font-mono uppercase">
                         {manifest.calculationBreakdown.limitingFactor === 'WEIGHT' && 'PESO REAL'}
                         {manifest.calculationBreakdown.limitingFactor === 'CUBAGE' && 'PESO CUBADO (VOLUME)'}
                         {manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' && 'RESTRIÇÃO OVERSIZE'}
@@ -1356,7 +1431,7 @@ export default function Home() {
 
               {manifest.warnings.length > 0 && (
                 <div className="bg-amber-500/5 rounded-lg p-5 border border-amber-500/20 mb-6">
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-3 flex items-center gap-2">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-500 mb-3 flex items-center gap-2">
                     <Info className="w-3.5 h-3.5" />
                     Avisos Operacionais
                   </h3>
@@ -1364,23 +1439,23 @@ export default function Home() {
                     {manifest.warnings.map((warning, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-xs font-mono">
                         <span className="text-amber-500 mt-0.5">{'>'}</span>
-                        <span className="text-slate-300 leading-relaxed">{warning}</span>
+                        <span className="text-slate-700 dark:text-slate-300 leading-relaxed">{warning}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-5 border-t border-slate-700/50">
+              <div className="flex items-center justify-between pt-5 border-t border-slate-200 dark:border-white/5">
                 <button 
                   onClick={() => setShowJson(!showJson)}
-                  className="text-[10px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-400 px-3 py-1.5 rounded transition-colors border border-slate-700"
+                  className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 px-3 py-1.5 rounded transition-colors border border-slate-200 dark:border-white/5"
                 >
                   {showJson ? 'OCULTAR_JSON' : 'VER_JSON_API'}
                 </button>
                 <div className="text-right">
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">Assinatura Digital</p>
-                  <div className="w-32 h-px bg-slate-700 mt-2 ml-auto"></div>
+                  <div className="w-32 h-px bg-slate-200 dark:bg-white/10 mt-2 ml-auto"></div>
                 </div>
               </div>
 
@@ -1388,9 +1463,9 @@ export default function Home() {
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="mt-4 bg-[#020617] rounded-lg p-4 overflow-x-auto border border-slate-800"
+                  className="mt-4 bg-slate-50 dark:bg-[#020617] rounded-lg p-4 overflow-x-auto border border-slate-200 dark:border-white/5"
                 >
-                  <pre className="text-[10px] font-mono text-emerald-400/80">
+                  <pre className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400/80">
                     {JSON.stringify({
                       flight_info: manifest.flight_info,
                       status: manifest.status,
@@ -1411,10 +1486,10 @@ export default function Home() {
                 </motion.div>
               )}
 
-              <div className="mt-6 bg-slate-800/30 rounded-lg p-3 border border-slate-700/30 flex items-start gap-2">
+              <div className="mt-6 bg-slate-100 dark:bg-slate-800/30 rounded-lg p-3 border border-slate-200 dark:border-white/5 flex items-start gap-2">
                 <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-slate-400 leading-relaxed font-mono">
-                  <strong className="text-slate-300">AVISO:</strong> Validação estruturada para integração via Next.js. Não substitui manuais oficiais.
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed font-mono">
+                  <strong className="text-slate-700 dark:text-slate-300">AVISO:</strong> Validação estruturada para integração via Next.js. Não substitui manuais oficiais.
                 </p>
               </div>
             </div>
