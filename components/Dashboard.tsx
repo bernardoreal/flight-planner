@@ -57,11 +57,16 @@ const FLEET_CONFIGS: Record<AircraftType, AircraftConfig> = {
 
 interface CargoItem {
   id: string;
-  type: 'GEN' | 'PER' | 'WET' | 'DGR' | 'AVI' | 'ICE';
+  type: 'GEN' | 'PER' | 'WET' | 'DGR' | 'AVI' | 'ICE' | 'NPL';
   weight: number;
   vols: number;
   overlap: boolean;
   description: string;
+  sameDimsAndWeight?: boolean;
+  dimLength?: number;
+  dimWidth?: number;
+  dimHeight?: number;
+  weightPerVol?: number;
 }
 
 // --- Components ---
@@ -177,7 +182,25 @@ export default function Dashboard() {
   };
 
   const updateCargo = (id: string, field: keyof CargoItem, value: any) => {
-    setCargoItems(cargoItems.map(i => i.id === id ? { ...i, [field]: value } : i));
+    setCargoItems(prevItems => prevItems.map(i => {
+      if (i.id !== id) return i;
+      
+      const updatedItem = { ...i, [field]: value };
+      
+      // Reset sameDimsAndWeight if type changes to something else
+      if (field === 'type' && value !== 'NPL') {
+        updatedItem.sameDimsAndWeight = false;
+      }
+      
+      // Auto-calculate total weight if using sameDimsAndWeight and type is NPL
+      if (updatedItem.type === 'NPL' && updatedItem.sameDimsAndWeight) {
+        if (field === 'weightPerVol' || field === 'vols') {
+          updatedItem.weight = (updatedItem.weightPerVol || 0) * (updatedItem.vols || 0);
+        }
+      }
+      
+      return updatedItem;
+    }));
   };
 
   return (
@@ -362,63 +385,135 @@ export default function Dashboard() {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 20 }}
-                      className="grid grid-cols-12 gap-4 items-center bg-slate-800/40 p-3 rounded-xl border border-white/5 hover:border-white/10 transition-all"
+                      className="bg-slate-800/40 p-3 rounded-xl border border-white/5 hover:border-white/10 transition-all"
                     >
-                      <div className="col-span-4 flex items-center gap-3">
-                        <select 
-                          value={item.type}
-                          onChange={(e) => updateCargo(item.id, 'type', e.target.value)}
-                          className="bg-slate-700 border-none rounded-lg text-[10px] font-bold px-2 py-1 focus:ring-1 focus:ring-[#1b0088] text-white"
-                        >
-                          <option value="GEN">GEN</option>
-                          <option value="PER">PER</option>
-                          <option value="WET">WET</option>
-                          <option value="DGR">DGR</option>
-                          <option value="AVI">AVI</option>
-                          <option value="ICE">ICE</option>
-                        </select>
-                        <input 
-                          type="text" 
-                          value={item.description}
-                          onChange={(e) => updateCargo(item.id, 'description', e.target.value)}
-                          className="bg-transparent border-none text-sm w-full focus:ring-0 text-slate-300"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <input 
-                          type="number" 
-                          value={item.weight}
-                          onChange={(e) => updateCargo(item.id, 'weight', Number(e.target.value))}
-                          className="bg-slate-900/50 border border-white/10 rounded-lg w-full text-center py-1 text-sm font-mono text-white"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <input 
-                          type="number" 
-                          value={item.vols}
-                          onChange={(e) => updateCargo(item.id, 'vols', Number(e.target.value))}
-                          className="bg-slate-900/50 border border-white/10 rounded-lg w-full text-center py-1 text-sm font-mono text-white"
-                        />
-                      </div>
-                      <div className="col-span-2 flex justify-center">
-                        <button 
-                          onClick={() => updateCargo(item.id, 'overlap', !item.overlap)}
-                          className={cn(
-                            "w-10 h-6 rounded-full p-1 transition-colors",
-                            item.overlap ? "bg-[#1b0088]" : "bg-slate-700"
+                      <div className="grid grid-cols-12 gap-4 items-center">
+                        <div className="col-span-4 flex flex-col gap-2">
+                          <div className="flex items-center gap-3">
+                            <select 
+                              value={item.type}
+                              onChange={(e) => updateCargo(item.id, 'type', e.target.value)}
+                              className="bg-slate-700 border-none rounded-lg text-[10px] font-bold px-2 py-1 focus:ring-1 focus:ring-[#1b0088] text-white max-w-[80px]"
+                            >
+                              <option value="GEN">GEN</option>
+                              <option value="PER">PER</option>
+                              <option value="WET">WET</option>
+                              <option value="DGR">DGR</option>
+                              <option value="AVI">AVI</option>
+                              <option value="ICE">ICE</option>
+                              <option value="NPL">NPL</option>
+                            </select>
+                            <input 
+                              type="text" 
+                              value={item.description}
+                              onChange={(e) => updateCargo(item.id, 'description', e.target.value)}
+                              className="bg-transparent border-none text-sm w-full focus:ring-0 text-slate-300"
+                              placeholder="Descrição"
+                            />
+                          </div>
+                          {item.type === 'NPL' && (
+                            <label className="flex items-center gap-2 text-[10px] text-slate-400 cursor-pointer hover:text-slate-300 transition-colors">
+                              <input 
+                                type="checkbox" 
+                                checked={item.sameDimsAndWeight || false}
+                                onChange={(e) => updateCargo(item.id, 'sameDimsAndWeight', e.target.checked)}
+                                className="rounded border-slate-600 bg-slate-800 text-[#1b0088] focus:ring-[#1b0088] w-3 h-3"
+                              />
+                              Volumes com mesmo peso e dimensões
+                            </label>
                           )}
-                        >
-                          <div className={cn("w-4 h-4 bg-white rounded-full transition-transform", item.overlap ? "translate-x-4" : "translate-x-0")} />
-                        </button>
+                        </div>
+                        <div className="col-span-2">
+                          <input 
+                            type="number" 
+                            value={item.weight}
+                            onChange={(e) => updateCargo(item.id, 'weight', Number(e.target.value))}
+                            disabled={item.sameDimsAndWeight}
+                            className={cn(
+                              "bg-slate-900/50 border border-white/10 rounded-lg w-full text-center py-1 text-sm font-mono text-white",
+                              item.sameDimsAndWeight && "opacity-50 cursor-not-allowed"
+                            )}
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <input 
+                            type="number" 
+                            value={item.vols}
+                            onChange={(e) => updateCargo(item.id, 'vols', Number(e.target.value))}
+                            className="bg-slate-900/50 border border-white/10 rounded-lg w-full text-center py-1 text-sm font-mono text-white"
+                          />
+                        </div>
+                        <div className="col-span-2 flex justify-center">
+                          <button 
+                            onClick={() => updateCargo(item.id, 'overlap', !item.overlap)}
+                            className={cn(
+                              "w-10 h-6 rounded-full p-1 transition-colors",
+                              item.overlap ? "bg-[#1b0088]" : "bg-slate-700"
+                            )}
+                          >
+                            <div className={cn("w-4 h-4 bg-white rounded-full transition-transform", item.overlap ? "translate-x-4" : "translate-x-0")} />
+                          </button>
+                        </div>
+                        <div className="col-span-2 text-right">
+                          <button 
+                            onClick={() => removeCargo(item.id)}
+                            className="p-2 text-slate-500 hover:text-[#e3004a] transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="col-span-2 text-right">
-                        <button 
-                          onClick={() => removeCargo(item.id)}
-                          className="p-2 text-slate-500 hover:text-[#e3004a] transition-colors"
+                      
+                      {/* Expanded Section for Dimensions */}
+                      {item.type === 'NPL' && item.sameDimsAndWeight && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-3 pt-3 border-t border-white/5 grid grid-cols-4 gap-4"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-bold block mb-1">Comp (cm)</label>
+                            <input 
+                              type="number" 
+                              value={item.dimLength || ''}
+                              onChange={(e) => updateCargo(item.id, 'dimLength', Number(e.target.value))}
+                              className="bg-slate-900/30 border border-white/5 rounded-lg w-full py-1 px-2 text-xs font-mono text-white"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-bold block mb-1">Larg (cm)</label>
+                            <input 
+                              type="number" 
+                              value={item.dimWidth || ''}
+                              onChange={(e) => updateCargo(item.id, 'dimWidth', Number(e.target.value))}
+                              className="bg-slate-900/30 border border-white/5 rounded-lg w-full py-1 px-2 text-xs font-mono text-white"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-bold block mb-1">Alt (cm)</label>
+                            <input 
+                              type="number" 
+                              value={item.dimHeight || ''}
+                              onChange={(e) => updateCargo(item.id, 'dimHeight', Number(e.target.value))}
+                              className="bg-slate-900/30 border border-white/5 rounded-lg w-full py-1 px-2 text-xs font-mono text-white"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-bold block mb-1">Peso/Vol (kg)</label>
+                            <input 
+                              type="number" 
+                              value={item.weightPerVol || ''}
+                              onChange={(e) => updateCargo(item.id, 'weightPerVol', Number(e.target.value))}
+                              className="bg-slate-900/30 border border-white/5 rounded-lg w-full py-1 px-2 text-xs font-mono text-emerald-400"
+                              placeholder="0"
+                            />
+                          </div>
+                        </motion.div>
+                      )}
                     </motion.div>
                   ))}
                 </AnimatePresence>

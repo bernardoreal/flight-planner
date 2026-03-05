@@ -823,6 +823,7 @@ export default function Home() {
                           for (let i = currentPranchas.length; i < count; i++) {
                             currentPranchas.push({
                               id: Math.random().toString(36).substr(2, 9),
+                              type: input.cargoType === 'MIXED' ? 'LOOSE' : input.cargoType,
                               weight: 100,
                               volumes: 1, // Pallet is treated as 1 volume unit for dimensions
                               length: 120,
