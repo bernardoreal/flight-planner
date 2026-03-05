@@ -199,9 +199,9 @@ export default function Home() {
       }
       \`\`\``;
 
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY_PIXOR;
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error('A chave de API (NEXT_PUBLIC_GEMINI_API_KEY_PIXOR) não foi encontrada. Verifique as variáveis de ambiente no Cloudflare Pages e faça um novo Deploy.');
+        throw new Error('A chave de API (NEXT_PUBLIC_GEMINI_API_KEY) não foi encontrada. Verifique as variáveis de ambiente.');
       }
 
       const ai = new GoogleGenAI({ apiKey });
@@ -323,9 +323,9 @@ export default function Home() {
       }
       \`\`\``;
 
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY_PIXOR;
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error('A chave de API (NEXT_PUBLIC_GEMINI_API_KEY_PIXOR) não foi encontrada. Verifique as variáveis de ambiente no Cloudflare Pages e faça um novo Deploy.');
+        throw new Error('A chave de API (NEXT_PUBLIC_GEMINI_API_KEY) não foi encontrada. Verifique as variáveis de ambiente.');
       }
 
       const ai = new GoogleGenAI({ apiKey });
