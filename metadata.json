@@ -1,0 +1,5 @@
+{
+  "name": "LATAM Cargo Global Operations Master",
+  "description": "Ferramenta de planejamento e manifesto técnico de carga para aeronaves da LATAM Brasil (A319, A320, A321).",
+  "requestFramePermissions": ["camera"]
+}

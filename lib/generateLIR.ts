@@ -1,0 +1,187 @@
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Prancha } from '@/lib/cargo-logic';
+
+export interface LIRPosition {
+  posId: string;
+  type: string;
+  tag: string;
+  weight: number;
+  volumes: number;
+  remarks: string;
+  hasOversize: boolean;
+  isDoublePos?: boolean;
+}
+
+interface LIRData {
+  flightCode: string;
+  date: string;
+  route: string;
+  aircraft: string;
+  totalWeight: number;
+  fwdPositions: LIRPosition[];
+  aftPositions: LIRPosition[];
+  bulkPositions: LIRPosition[];
+}
+
+export const generateLIR = (data: LIRData) => {
+  const doc = new jsPDF();
+  
+  // --- Official Header Style ---
+  doc.setDrawColor(0);
+  doc.setLineWidth(0.5);
+  doc.rect(14, 10, 182, 30);
+  
+  doc.line(60, 10, 60, 40);
+  doc.line(140, 10, 140, 40);
+  
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(27, 0, 136);
+  doc.text('LATAM', 20, 22);
+  doc.setFontSize(8);
+  doc.text('CARGO', 20, 27);
+  
+  doc.setTextColor(0);
+  doc.setFontSize(14);
+  doc.text('LOADING INSTRUCTION', 100, 22, { align: 'center' });
+  doc.text('/ REPORT (LIR)', 100, 30, { align: 'center' });
+  
+  doc.setFontSize(10);
+  doc.text('DNATA', 165, 25, { align: 'center' });
+  doc.setFontSize(7);
+  doc.text('GROUND HANDLING', 165, 30, { align: 'center' });
+
+  // --- Flight Details Grid ---
+  doc.setLineWidth(0.2);
+  doc.rect(14, 45, 182, 20);
+  doc.line(60, 45, 60, 65);
+  doc.line(105, 45, 105, 65);
+  doc.line(150, 45, 150, 65);
+  
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('FLIGHT / VOO', 16, 50);
+  doc.text('DATE / DATA', 62, 50);
+  doc.text('AIRCRAFT / ACFT', 107, 50);
+  doc.text('ROUTE / ROTA', 152, 50);
+  
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(data.flightCode, 16, 58);
+  doc.text(data.date, 62, 58);
+  doc.text(data.aircraft, 107, 58);
+  doc.text(data.route, 152, 58);
+
+  // --- Loading Table ---
+  const tableBody: any[] = [];
+  
+  const processPositions = (title: string, positions: LIRPosition[], color: [number, number, number]) => {
+    if (positions.length === 0) return;
+    
+    tableBody.push([{ content: title, colSpan: 7, styles: { fillColor: color, textColor: 255, fontStyle: 'bold' as const } }]);
+    
+    positions.forEach(pos => {
+      tableBody.push([
+        pos.posId,
+        pos.type,
+        pos.tag,
+        `${pos.weight}`,
+        `${pos.volumes}`,
+        pos.remarks,
+        ''
+      ]);
+    });
+  };
+
+  processPositions('COMPARTMENT 1 & 2 (FWD)', data.fwdPositions, [27, 0, 136]);
+  processPositions('COMPARTMENT 3 & 4 (AFT)', data.aftPositions, [27, 0, 136]);
+  processPositions('COMPARTMENT 5 (BULK)', data.bulkPositions, [227, 0, 74]);
+
+  autoTable(doc, {
+    startY: 70,
+    head: [['POS', 'TYPE', 'ULD ID / TAG', 'PLANNED WT', 'VOL', 'REMARKS / DGR', 'ACTUAL WT']],
+    body: tableBody,
+    theme: 'grid',
+    headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' as const },
+    styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
+    columnStyles: {
+      0: { cellWidth: 15 },
+      1: { cellWidth: 20 },
+      2: { cellWidth: 40 },
+      3: { cellWidth: 25 },
+      4: { cellWidth: 15 },
+      5: { cellWidth: 35 },
+      6: { cellWidth: 32 }
+    }
+  });
+
+  const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+  // --- Summary Box ---
+  doc.setDrawColor(0);
+  doc.rect(14, finalY, 182, 15);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOTAL PLANNED WEIGHT:', 20, finalY + 9);
+  doc.setFontSize(12);
+  doc.text(`${data.totalWeight} KG`, 70, finalY + 10);
+  
+  doc.setFontSize(9);
+  doc.text('TOTAL ACTUAL WEIGHT:', 110, finalY + 9);
+  doc.line(155, finalY + 10, 190, finalY + 10);
+
+  // --- Signatures ---
+  const sigY = finalY + 30;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  
+  doc.line(14, sigY, 70, sigY);
+  doc.text('LOADING SUPERVISOR (DNATA)', 14, sigY + 5);
+  doc.text('NAME:', 14, sigY + 10);
+  doc.text('SIGN:', 14, sigY + 15);
+
+  doc.line(75, sigY, 130, sigY);
+  doc.text('LOADMASTER / DOV', 75, sigY + 5);
+  doc.text('NAME:', 75, sigY + 10);
+  doc.text('SIGN:', 75, sigY + 15);
+
+  doc.line(135, sigY, 196, sigY);
+  doc.text('CAPTAIN (ACCEPTANCE)', 135, sigY + 5);
+  doc.text('NAME:', 135, sigY + 10);
+  doc.text('SIGN:', 135, sigY + 15);
+
+  // --- Watermark ---
+  const pageHeight = doc.internal.pageSize.height;
+  const pageWidth = doc.internal.pageSize.width;
+  
+  doc.saveGraphicsState();
+  doc.setGState(new (doc as any).GState({ opacity: 0.2 })); // Increased opacity
+  doc.setFontSize(30);
+  doc.setTextColor(200, 0, 0); // Red
+  doc.setFont('helvetica', 'bold');
+  
+  // Repeated diagonal watermark pattern
+  const text = 'RASCUNHO - NÃO OFICIAL';
+  const stepX = 100;
+  const stepY = 100;
+
+  for (let x = -100; x < pageWidth + 100; x += stepX) {
+    for (let y = -100; y < pageHeight + 100; y += stepY) {
+      doc.text(text, x, y, { align: 'center', angle: 45 });
+    }
+  }
+
+  // Big central warning
+  doc.setGState(new (doc as any).GState({ opacity: 0.3 }));
+  doc.setFontSize(50);
+  doc.text('USO INTERNO', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 });
+  
+  doc.restoreGraphicsState();
+
+  doc.setFontSize(7);
+  doc.setTextColor(100);
+  doc.text('GENERATED BY LATAM CARGO AI ASSISTANT - PRELIMINARY DOCUMENT', 105, pageHeight - 10, { align: 'center' });
+
+  doc.save(`LIR_${data.flightCode}_${data.date.replace(/\//g, '-')}.pdf`);
+};
