@@ -9,12 +9,17 @@ import { AircraftType, CargoInput, ManifestResult, generateManifest, ULD_SPECS }
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { generateLIR, LIRPosition } from '@/lib/generateLIR';
+import { NetworkStatus } from '@/components/NetworkStatus';
+import { LegalDisclaimerModal } from '@/components/LegalDisclaimerModal';
+import { useDataRetention } from '@/hooks/useDataRetention';
 
 // MODELO ESCOLHIDO: Gemini 3 Flash (Recomendado para tarefas de texto/busca)
 const AI_MODEL = 'gemini-3-flash-preview';
 
 export default function Home() {
+  useDataRetention(); // Enforce LGPD Data Retention Policy
 
+  const [isDisclaimerAccepted, setIsDisclaimerAccepted] = useState(false);
   const [palletCount, setPalletCount] = useState<number>(1);
 
   const [input, setInput] = useState<CargoInput>({
@@ -1872,6 +1877,10 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      <NetworkStatus />
+      {!isDisclaimerAccepted && (
+        <LegalDisclaimerModal onAccept={() => setIsDisclaimerAccepted(true)} />
+      )}
     </div>
   );
 }
