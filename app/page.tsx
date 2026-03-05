@@ -30,6 +30,7 @@ export default function Home() {
     pranchas: [
       {
         id: '1',
+        type: 'LOOSE',
         weight: 1500,
         volumes: 50,
         length: 120,
@@ -65,6 +66,7 @@ export default function Home() {
   const [expandedPositionGroup, setExpandedPositionGroup] = useState<number>(1);
 
   const [isDateInputFocused, setIsDateInputFocused] = useState(false);
+  const [isUniformCargo, setIsUniformCargo] = useState(false);
   const [searchProgress, setSearchProgress] = useState(0);
 
   // Helper to format date for display
@@ -821,6 +823,7 @@ export default function Home() {
                           for (let i = currentPranchas.length; i < count; i++) {
                             currentPranchas.push({
                               id: Math.random().toString(36).substr(2, 9),
+                              type: input.cargoType === 'MIXED' ? 'LOOSE' : input.cargoType,
                               weight: 100,
                               volumes: 1, // Pallet is treated as 1 volume unit for dimensions
                               length: 120,
@@ -1227,14 +1230,19 @@ export default function Home() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                             <div>
                               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                {(input.cargoType === 'LOOSE' || input.cargoType === 'NON_PALLETIZABLE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED') ? 'Peso (kg)' : 'Peso Bruto do ULD (kg)'}
+                                {(input.cargoType === 'LOOSE' || input.cargoType === 'NON_PALLETIZABLE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED') ? (isUniformCargo ? 'Peso Unitário (kg)' : 'Peso (kg)') : 'Peso Bruto do ULD (kg)'}
                               </label>
                               <input
                                 type="number"
-                                value={prancha.weight}
+                                value={isUniformCargo ? (prancha.weight / Math.max(1, prancha.volumes)) : prancha.weight}
                                 onChange={(e) => {
+                                  const val = Number(e.target.value);
                                   const newPranchas = [...input.pranchas];
-                                  newPranchas[index].weight = Number(e.target.value);
+                                  if (isUniformCargo) {
+                                    newPranchas[index].weight = val * newPranchas[index].volumes;
+                                  } else {
+                                    newPranchas[index].weight = val;
+                                  }
                                   setInput({...input, pranchas: newPranchas});
                                 }}
                                 className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
@@ -1242,14 +1250,23 @@ export default function Home() {
                             </div>
                             <div>
                               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                {input.cargoType === 'ULD' ? 'Volumes (Dentro do ULD)' : ((input.cargoType === 'NON_PALLETIZABLE' || prancha.type === 'NON_PALLETIZABLE') ? 'Quantidade de Peças' : 'Volumes (Unidades no Pallet)')}
+                                {input.cargoType === 'ULD' ? 'Volumes (Dentro do ULD)' : ((input.cargoType === 'NON_PALLETIZABLE' || prancha.type === 'NON_PALLETIZABLE') ? (isUniformCargo ? 'Quantidade Total de Peças' : 'Quantidade de Peças') : 'Volumes (Unidades no Pallet)')}
                               </label>
                               <input
                                 type="number"
                                 value={prancha.volumes}
                                 onChange={(e) => {
+                                  const val = Number(e.target.value);
                                   const newPranchas = [...input.pranchas];
-                                  newPranchas[index].volumes = Number(e.target.value);
+                                  if (isUniformCargo) {
+                                    // If changing volumes in uniform mode, we need to update total weight based on unit weight
+                                    // Unit weight = currentWeight / currentVolumes
+                                    const currentUnitWeight = newPranchas[index].weight / Math.max(1, newPranchas[index].volumes);
+                                    newPranchas[index].volumes = val;
+                                    newPranchas[index].weight = currentUnitWeight * val;
+                                  } else {
+                                    newPranchas[index].volumes = val;
+                                  }
                                   setInput({...input, pranchas: newPranchas});
                                 }}
                                 className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all font-mono"
