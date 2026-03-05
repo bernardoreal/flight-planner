@@ -982,24 +982,24 @@ export default function Home() {
                   return (
                   <div key={`pos-${group.posNum}`} className={`border-2 border-slate-200 dark:border-white/10 rounded-2xl bg-white dark:bg-slate-900/50 shadow-sm overflow-hidden transition-all ${isGroupExpanded ? 'ring-2 ring-[#1b0088]/20 dark:ring-indigo-500/20' : ''}`}>
                     <div 
-                      className="flex justify-between items-center p-4 cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                      className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors gap-3"
                       onClick={() => togglePositionGroup(group.posNum)}
                     >
-                      <div className="flex items-center gap-3">
-                        <h2 className={`text-lg font-bold flex items-center gap-2 ${isGroupExpanded ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                          <Package className={`w-5 h-5 ${isGroupExpanded ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                        <h2 className={`text-base sm:text-lg font-bold flex items-center gap-2 ${isGroupExpanded ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                          <Package className={`w-4 h-4 sm:w-5 h-5 ${isGroupExpanded ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`} />
                           {group.hasOversize ? `Posições ${group.posNum} e ${group.posNum + 1}` : `Posição ${group.posNum}`}
                         </h2>
                         {!isGroupExpanded && (
-                          <div className="flex items-center gap-3 ml-4 border-l border-slate-300 dark:border-white/10 pl-4">
-                            <div className="flex gap-4 text-xs font-mono text-slate-500 dark:text-slate-400">
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:ml-4 sm:border-l border-slate-300 dark:border-white/10 sm:pl-4">
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] sm:text-xs font-mono text-slate-500 dark:text-slate-400">
                               <span>Peso: <strong>{Math.round(group.totalWeight)}kg</strong></span>
                               <span>Cubado: <strong>{Math.round(group.totalCubed)}kg</strong></span>
                               <span>Vols: <strong>{totalVolumes}</strong></span>
                             </div>
-                            <div className="flex gap-1">
+                            <div className="flex flex-wrap gap-1">
                               {specialTypes.map((type) => (
-                                <span key={type as string} className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                <span key={type as string} className={`px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-bold uppercase tracking-wider ${
                                   type === 'ICE' ? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' :
                                   type === 'DGR' ? 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800' :
                                   type === 'AVI' ? 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800' :
@@ -1014,7 +1014,7 @@ export default function Home() {
                                 </span>
                               ))}
                               {group.hasOversize && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800">
+                                <span className="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800">
                                   OVS
                                 </span>
                               )}
@@ -1022,14 +1022,14 @@ export default function Home() {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4">
                         {isGroupExpanded && (
-                          <div className="flex gap-4 text-xs font-mono text-slate-500 dark:text-slate-400">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] sm:text-xs font-mono text-slate-500 dark:text-slate-400">
                             <span>Peso: <strong className={group.totalWeight > 900 ? 'text-red-500' : 'text-slate-900 dark:text-white'}>{Math.round(group.totalWeight)}kg</strong> / 900kg</span>
                             <span>Cubado: <strong className={group.totalCubed > 600 ? 'text-red-500' : 'text-slate-900 dark:text-white'}>{Math.round(group.totalCubed)}kg</strong> / 600kg</span>
                           </div>
                         )}
-                        {isGroupExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                        {isGroupExpanded ? <ChevronUp className="w-4 h-4 sm:w-5 h-5 text-slate-400" /> : <ChevronDown className="w-4 h-4 sm:w-5 h-5 text-slate-400" />}
                       </div>
                     </div>
                     
@@ -1633,13 +1633,13 @@ export default function Home() {
               <div className="bg-slate-50 dark:bg-slate-800/30 rounded-lg p-5 border border-slate-200 dark:border-white/5 mb-6">
                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-4 border-b border-slate-200 dark:border-white/5 pb-2">Veredito Operacional</h3>
                 
-                <div className="space-y-3 font-mono text-sm">
-                  <div className="flex justify-between items-center">
+                <div className="space-y-3 font-mono text-xs sm:text-sm">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-slate-600 dark:text-slate-400">Posições Necessárias:</span>
-                    <span className="font-bold text-slate-900 dark:text-slate-100">{manifest.posicoes} <span className="text-[10px] text-slate-500 dark:text-slate-500 font-sans font-normal ml-2">(Peso/Volume/Overlap)</span></span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100">{manifest.posicoes} <span className="text-[10px] text-slate-500 dark:text-slate-500 font-sans font-normal ml-1 sm:ml-2">(Peso/Volume/Overlap)</span></span>
                   </div>
                   <div className="flex flex-col gap-1 pt-2 pb-2 border-y border-slate-200 dark:border-white/5">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                       <span className="text-slate-600 dark:text-slate-400">Capacidade de Peso (Carga):</span>
                       <span className={`font-bold ${manifest.weight_usage_percent >= 0.9 ? 'text-[#e3004a]' : manifest.weight_usage_percent >= 0.8 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                         {manifest.total_weight.toLocaleString('pt-BR')} / {manifest.max_cargo_weight.toLocaleString('pt-BR')} kg
@@ -1656,29 +1656,29 @@ export default function Home() {
                       <span className="text-[10px] text-slate-500 dark:text-slate-400">Livre: {manifest.available_weight.toLocaleString('pt-BR')} kg</span>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-slate-600 dark:text-slate-400">Alocação Sugerida:</span>
                     <span className="font-bold text-slate-900 dark:text-slate-100">
                       {manifest.allocation.fwd} FWD / {manifest.allocation.aft} AFT / {manifest.allocation.bulk} BULK
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                     <span className="text-slate-600 dark:text-slate-400">Disponibilidade Líquida:</span>
                     <span className={`font-bold ${manifest.netAvailability < 0 ? 'text-[#e3004a]' : 'text-emerald-600 dark:text-emerald-400'}`}>
                       {manifest.netAvailability} Posições Restantes
                     </span>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-white/5">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start pt-2 border-t border-slate-200 dark:border-white/5 gap-1">
                     <span className="text-slate-600 dark:text-slate-400">Impacto CG (Qualitativo):</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 text-right max-w-[60%] text-xs">{manifest.cg_impact}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 sm:text-right sm:max-w-[60%] text-[10px] sm:text-xs">{manifest.cg_impact}</span>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-white/5">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start pt-2 border-t border-slate-200 dark:border-white/5 gap-1">
                     <span className="text-slate-600 dark:text-slate-400">Fuel Penalty:</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 text-right max-w-[60%] text-xs">{manifest.fuel_penalty}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 sm:text-right sm:max-w-[60%] text-[10px] sm:text-xs">{manifest.fuel_penalty}</span>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-white/5">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start pt-2 border-t border-slate-200 dark:border-white/5 gap-1">
                     <span className="text-slate-600 dark:text-slate-400">Otimização ESG:</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 text-right max-w-[60%] text-xs">{manifest.esg_impact}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 sm:text-right sm:max-w-[60%] text-[10px] sm:text-xs">{manifest.esg_impact}</span>
                   </div>
                 </div>
               </div>
@@ -1718,7 +1718,7 @@ export default function Home() {
                       <RectangleHorizontal className="w-3.5 h-3.5" />
                       Detalhamento do Cálculo de Posições
                    </h4>
-                   <div className="grid grid-cols-3 gap-3">
+                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'bg-[#1b0088]/10 dark:bg-[#1b0088]/20 border-[#1b0088]/30 dark:border-[#1b0088]/40' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-white/5'}`}>
                          <div>
                            <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'WEIGHT' ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500'}`}>Peso Real</span>
@@ -1746,7 +1746,8 @@ export default function Home() {
                            </span>
                          </div>
                       </div>
-                                            <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'bg-[#1b0088]/10 dark:bg-[#1b0088]/20 border-[#1b0088]/30 dark:border-[#1b0088]/40' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-white/5'}`}>
+                      
+                      <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'bg-[#1b0088]/10 dark:bg-[#1b0088]/20 border-[#1b0088]/30 dark:border-[#1b0088]/40' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-white/5'}`}>
                          <div>
                            <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500'}`}>Oversize</span>
                            <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
