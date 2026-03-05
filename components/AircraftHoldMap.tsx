@@ -3,9 +3,14 @@ import React from 'react';
 interface AircraftHoldMapProps {
   aircraft: string;
   allocation: { fwd: number; aft: number; bulk: number };
+  details?: {
+    fwd: ('CGO' | 'OVS' | 'BAG' | 'LIV')[];
+    aft: ('CGO' | 'OVS' | 'BAG' | 'LIV')[];
+    bulk: ('CGO' | 'OVS' | 'BAG' | 'LIV')[];
+  };
 }
 
-export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) {
+export function AircraftHoldMap({ aircraft, allocation, details }: AircraftHoldMapProps) {
   if (aircraft === 'OTHER' || !aircraft) return null;
 
   const config = {
@@ -39,7 +44,9 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
             <div className="flex gap-1.5 sm:gap-2">
               <div className="text-[8px] font-mono text-slate-500 dark:text-slate-400 hidden md:block self-center mr-1">NOSE</div>
               {Array.from({ length: Math.max(config.fwd, allocation.fwd) }).map((_, i) => {
-                 const isUsed = i < allocation.fwd;
+                 const detail = details?.fwd[i];
+                 const isUsed = detail ? (detail === 'CGO' || detail === 'OVS') : i < allocation.fwd;
+                 const isOversize = detail === 'OVS';
                  const isOver = i >= config.fwd;
                  
                  let boxClass = 'bg-slate-200 dark:bg-slate-800/80 border-slate-300 dark:border-white/10 text-slate-500 dark:text-slate-400';
@@ -48,6 +55,9 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
                  if (isOver) {
                    boxClass = 'bg-red-500/20 border-red-500 border-dashed text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
                    label = 'EXC';
+                 } else if (isOversize) {
+                   boxClass = 'bg-purple-500/20 border-purple-500 text-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.2)]';
+                   label = 'OVS';
                  } else if (isUsed) {
                    boxClass = 'bg-emerald-500/20 border-emerald-500 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
                    label = 'CGO';
@@ -87,8 +97,10 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
             <div className="text-[10px] font-mono text-slate-500 md:hidden tracking-widest border-b border-slate-300 dark:border-slate-700/50 pb-1 w-full text-center mb-1">PORÃO TRASEIRO (AFT)</div>
             <div className="flex gap-1.5 sm:gap-2">
               {Array.from({ length: Math.max(config.aft, allocation.aft + config.bags) }).map((_, i) => {
-                 const isBag = i >= config.aft - config.bags && i < config.aft;
-                 const isUsed = !isBag && i < allocation.aft + (i >= config.aft ? config.bags : 0);
+                 const detail = details?.aft[i];
+                 const isBag = detail ? detail === 'BAG' : (i >= config.aft - config.bags && i < config.aft);
+                 const isOversize = detail === 'OVS';
+                 const isUsed = detail ? (detail === 'CGO' || detail === 'OVS') : (!isBag && i < allocation.aft + (i >= config.aft ? config.bags : 0));
                  const isOver = i >= config.aft;
                  
                  let boxClass = 'bg-slate-200 dark:bg-slate-800/80 border-slate-300 dark:border-white/10 text-slate-500 dark:text-slate-400';
@@ -100,6 +112,9 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
                  } else if (isBag) {
                    boxClass = 'bg-amber-500/20 border-amber-500 text-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.2)]';
                    label = 'BAG';
+                 } else if (isOversize) {
+                   boxClass = 'bg-purple-500/20 border-purple-500 text-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.2)]';
+                   label = 'OVS';
                  } else if (isUsed) {
                    boxClass = 'bg-emerald-500/20 border-emerald-500 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
                    label = 'CGO';
@@ -159,6 +174,10 @@ export function AircraftHoldMap({ aircraft, allocation }: AircraftHoldMapProps) 
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500/40 border border-emerald-500"></div>
           <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono">Carga</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm bg-purple-500/40 border border-purple-500"></div>
+          <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono">Oversize</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/40 border border-amber-500"></div>

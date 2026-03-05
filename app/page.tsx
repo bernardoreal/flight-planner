@@ -1616,6 +1616,7 @@ export default function Home() {
               <AircraftHoldMap 
                 aircraft={manifest.flight_info.aircraft} 
                 allocation={manifest.allocation} 
+                details={manifest.allocationDetails}
               />
 
               {manifest.cubage_alert && (

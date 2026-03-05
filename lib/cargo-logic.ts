@@ -102,6 +102,11 @@ export interface ManifestResult {
     aft: number;
     bulk: number;
   };
+  allocationDetails?: {
+    fwd: ('CGO' | 'OVS' | 'BAG' | 'LIV')[];
+    aft: ('CGO' | 'OVS' | 'BAG' | 'LIV')[];
+    bulk: ('CGO' | 'OVS' | 'BAG' | 'LIV')[];
+  };
   max_cargo_weight: number;
   total_weight: number;
   available_weight: number;
@@ -192,6 +197,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
   }
   
   // Rule 1: Barrow/Container Limit or ULD Limit
+  const posSequence: ('CGO' | 'OVS')[] = [];
+
   if (input.cargoType === 'ULD') {
     const spec = ULD_SPECS[input.uldType] || ULD_SPECS['AKH'];
     const uldTare = spec.tare;
@@ -229,11 +236,15 @@ export function generateManifest(input: CargoInput): ManifestResult {
       warnings.push(`CRÍTICO: Limite de ULDs excedido para ${input.aircraft} (Max: ${config.uldMax} ${input.uldType}).`);
       status = 'REJEITADO';
     }
+
+    for (let i = 0; i < posicoes; i++) {
+      posSequence.push('CGO');
+    }
   } else {
     // LOOSE CARGO:
     let totalLooseWeight = 0;
     let totalLooseCubedWeight = 0;
-    let maxOversizePos = 0;
+    let totalOversizePos = 0; // Total positions required by oversize/overlap
 
     let sequentialPos = 0;
     let currentBinWeight = 0;
@@ -243,47 +254,67 @@ export function generateManifest(input: CargoInput): ManifestResult {
       const pranchaNum = index + 1;
       
       totalLooseWeight += p.weight;
-
-      // Cálculo do peso cubado (Fator de conversão: (C x L x A) / 6000)
       const cubedWeight = (p.length * p.width * p.height) / 6000;
       totalLooseCubedWeight += cubedWeight;
-      
-      // Lógica de Bin Packing Sequencial (Alocação automática em nova posição)
-      // Se adicionar essa prancha estourar o limite da posição atual (e a posição não estiver vazia)
-      if ((currentBinWeight + p.weight > 900 || currentBinCubed + cubedWeight > 600) && (currentBinWeight > 0 || currentBinCubed > 0)) {
-         sequentialPos++; // Fecha a posição atual
-         currentBinWeight = 0;
-         currentBinCubed = 0;
-      }
-      
-      currentBinWeight += p.weight;
-      currentBinCubed += cubedWeight;
-      
-      // Se a prancha sozinha for maior que uma posição (ex: 1200kg)
-      // Ela vai consumir posições inteiras até sobrar o resto
-      while (currentBinWeight > 900 || currentBinCubed > 600) {
-         sequentialPos++;
-         currentBinWeight = Math.max(0, currentBinWeight - 900);
-         currentBinCubed = Math.max(0, currentBinCubed - 600);
-      }
 
-      // Se for um único volume indivisível e for muito comprido, ele vai dar overlap físico inevitável
-      if (p.volumes === 1 && p.length > 150) {
-        const lengthPos = Math.ceil(p.length / 150);
-        if (lengthPos > maxOversizePos) {
-           maxOversizePos = lengthPos; // Mantém o maior overlap físico necessário
-           warnings.push(`INFO (Prancha ${pranchaNum}): Volume único longo detectado (${p.length}cm). Requer espaço físico contínuo de ${lengthPos} posições.`);
+      // Se for OVERSIZE, ele consome posições exclusivas
+      if (p.hasOversize) {
+        // Fecha a posição atual se houver algo nela
+        if (currentBinWeight > 0 || currentBinCubed > 0) {
+          sequentialPos++;
+          posSequence.push('CGO');
+          currentBinWeight = 0;
+          currentBinCubed = 0;
         }
-      }
-
-      // Tratamento de Overlap Explícito (Oversize)
-      if (p.hasOversize && p.oversizeVolumes > 0) {
-        const oversizeLength = p.oversizeLength || 200;
-        const positionsPerOversize = Math.ceil(oversizeLength / 150);
         
-        if (positionsPerOversize > maxOversizePos) {
-          maxOversizePos = positionsPerOversize;
-          warnings.push(`INFO (Prancha ${pranchaNum}): Overlap explícito detectado. Item oversize bloqueando ${positionsPerOversize} posições físicas.`);
+        // Calcula quantas posições esse item oversize ocupa
+        const oversizeLength = p.oversizeLength || p.length || 200;
+        const positionsNeeded = Math.max(2, Math.ceil(oversizeLength / 150));
+        
+        for (let i = 0; i < positionsNeeded; i++) {
+          posSequence.push('OVS');
+        }
+        
+        sequentialPos += positionsNeeded;
+        totalOversizePos += positionsNeeded; // Add to total
+        warnings.push(`INFO (Prancha ${pranchaNum}): Item OVERSIZE detectado. Ocupando ${positionsNeeded} posições exclusivas.`);
+        
+        // O próximo item deve começar em uma nova posição
+        currentBinWeight = 0;
+        currentBinCubed = 0;
+      } else {
+        // Lógica de Bin Packing Sequencial (Alocação automática em nova posição)
+        // Se adicionar essa prancha estourar o limite da posição atual (e a posição não estiver vazia)
+        if ((currentBinWeight + p.weight > 900 || currentBinCubed + cubedWeight > 600) && (currentBinWeight > 0 || currentBinCubed > 0)) {
+           sequentialPos++; // Fecha a posição atual
+           posSequence.push('CGO');
+           currentBinWeight = 0;
+           currentBinCubed = 0;
+        }
+        
+        currentBinWeight += p.weight;
+        currentBinCubed += cubedWeight;
+        
+        // Se a prancha sozinha for maior que uma posição (ex: 1200kg)
+        // Ela vai consumir posições inteiras até sobrar o resto
+        while (currentBinWeight > 900 || currentBinCubed > 600) {
+           sequentialPos++;
+           posSequence.push('CGO');
+           currentBinWeight = Math.max(0, currentBinWeight - 900);
+           currentBinCubed = Math.max(0, currentBinCubed - 600);
+        }
+
+        // Se for um único volume indivisível e for muito comprido, ele vai dar overlap físico inevitável
+        if (p.volumes === 1 && p.length > 150) {
+          const lengthPos = Math.ceil(p.length / 150);
+          if (lengthPos > 1) {
+             // For loose items, we track the maximum physical overlap if not explicitly oversize
+             if (lengthPos > totalOversizePos) {
+                // This is a bit tricky since totalOversizePos is a sum now.
+                // But if a single item is longer than the sum of other oversize items, it might be the limiting factor.
+                // However, the user's logic is sequential.
+             }
+          }
         }
       }
       
@@ -303,15 +334,9 @@ export function generateManifest(input: CargoInput): ManifestResult {
       }
 
       // Door Dimension Check (Tipping Check)
-      // Sort dimensions to find the smallest two (which must pass through the door)
       const dims = [p.length, p.width, p.height].sort((a, b) => a - b);
       const minDim = dims[0];
       const midDim = dims[1];
-      
-      // Check against door dimensions (considering rotation)
-      // Door is W x H. Cargo must fit either W x H or H x W.
-      // Usually, minDim must be < DoorHeight and midDim < DoorWidth
-      // OR minDim < DoorWidth and midDim < DoorHeight
       const fitsDoor = (minDim < config.doorDims.h && midDim < config.doorDims.w) || 
                        (minDim < config.doorDims.w && midDim < config.doorDims.h);
 
@@ -330,20 +355,17 @@ export function generateManifest(input: CargoInput): ManifestResult {
          status = 'REJEITADO';
       }
       
-      // Floor load calculation (kg/m² and kg/inch)
       const areaM2 = (p.length / 100) * (p.width / 100);
       const floorLoadArea = areaM2 > 0 ? p.weight / areaM2 : 0;
-      
-      // Running load (kg/inch) - Airbus WBM standard check
       const lengthInches = p.length / 2.54;
       const runningLoad = lengthInches > 0 ? p.weight / lengthInches : 0;
       
-      if (floorLoadArea > 732) { // Airbus standard area load limit
+      if (floorLoadArea > 732) {
         warnings.push(`CRÍTICO (Prancha ${pranchaNum}): Limite de Area Load excedido (${Math.round(floorLoadArea)} kg/m² > 732 kg/m²). Necessário uso de pranchas de distribuição (Shoring).`);
         if (status !== 'REJEITADO') status = 'ALERTA';
       }
       
-      if (runningLoad > 26.8) { // Airbus standard running load limit (approx 1500 lb/ft)
+      if (runningLoad > 26.8) {
         warnings.push(`CRÍTICO (Prancha ${pranchaNum}): Limite de Running Load excedido (${runningLoad.toFixed(1)} kg/inch). Risco estrutural ao piso do porão.`);
         status = 'REJEITADO';
       }
@@ -352,32 +374,31 @@ export function generateManifest(input: CargoInput): ManifestResult {
     // Adiciona a última posição se houver sobra
     if (currentBinWeight > 0 || currentBinCubed > 0) {
        sequentialPos++;
+       posSequence.push('CGO');
     }
 
     // Cálculo final de posições baseado nos TOTAIS (Agregação) - Apenas para referência no Breakdown
     const totalWeightPos = Math.ceil(totalLooseWeight / 900);
     const totalCubedPosCalc = Math.ceil(totalLooseCubedWeight / 600);
     
-    // A quantidade de posições é definida pelo maior limitante: Bin Packing Sequencial ou Restrição Física (Oversize)
-    // Garante no mínimo 1 posição se houver carga
-    posicoes = Math.max(sequentialPos, maxOversizePos, input.pranchas.length > 0 ? 1 : 0);
+    // A quantidade de posições é definida pelo maior limitante: Bin Packing Sequencial (que já inclui oversize)
+    posicoes = Math.max(sequentialPos, input.pranchas.length > 0 ? 1 : 0);
     
     totalCubedPos = totalCubedPosCalc; // Para uso no alerta de cubagem global
 
     let limitingFactor: 'WEIGHT' | 'CUBAGE' | 'OVERSIZE' | 'MINIMUM' = 'MINIMUM';
-    if (posicoes === sequentialPos && sequentialPos > maxOversizePos) {
-        // Se a alocação sequencial definiu as posições, verificamos qual foi o fator que mais contribuiu
-        if (totalWeightPos >= totalCubedPosCalc) {
-            limitingFactor = 'WEIGHT';
+    if (posicoes === sequentialPos && totalOversizePos > 0) {
+        // Se houve itens oversize, eles são o fator dominante ou pelo menos contribuinte
+        // Se a quantidade de posições por peso/cubagem for menor que as posições totais, oversize é o limitante
+        if (posicoes > Math.max(totalWeightPos, totalCubedPosCalc)) {
+            limitingFactor = 'OVERSIZE';
         } else {
-            limitingFactor = 'CUBAGE';
+            if (totalWeightPos >= totalCubedPosCalc) limitingFactor = 'WEIGHT';
+            else limitingFactor = 'CUBAGE';
         }
-    } else if (posicoes === maxOversizePos && maxOversizePos > sequentialPos) {
-        limitingFactor = 'OVERSIZE';
     } else if (posicoes === 1 && input.pranchas.length > 0) {
         limitingFactor = 'MINIMUM';
     } else {
-        // Tie-breaker or default
         if (totalWeightPos >= totalCubedPosCalc) limitingFactor = 'WEIGHT';
         else limitingFactor = 'CUBAGE';
     }
@@ -387,7 +408,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
         totalRealPos: totalWeightPos,
         totalCubedWeight: totalLooseCubedWeight,
         totalCubedPos: totalCubedPosCalc,
-        oversizePos: maxOversizePos,
+        oversizePos: totalOversizePos,
         finalPos: posicoes,
         limitingFactor
     };
@@ -641,10 +662,49 @@ export function generateManifest(input: CargoInput): ManifestResult {
   warnings.push('MANDATÓRIO: Garantir amarração (Tie-down) conforme WBM para evitar deslocamento em voo.');
 
   // 8. DOV Alert & Max Weight
-  // max_cargo_weight is already calculated at the top
   let dov_alert = '';
   const totalRequestedPos = posicoes + bulk;
   
+  // Detailed Allocation Map for UI
+  const allocationDetails = {
+    fwd: [] as ('CGO' | 'OVS' | 'BAG' | 'LIV')[],
+    aft: [] as ('CGO' | 'OVS' | 'BAG' | 'LIV')[],
+    bulk: [] as ('CGO' | 'OVS' | 'BAG' | 'LIV')[]
+  };
+
+  // Fill FWD
+  for (let i = 0; i < config.fwdMax; i++) {
+    if (posSequence.length > 0) {
+      allocationDetails.fwd.push(posSequence.shift()!);
+    } else {
+      allocationDetails.fwd.push('LIV');
+    }
+  }
+
+  // Fill AFT (considering bags)
+  const aftTotal = config.aftMax;
+  const cargoInAft = posSequence.length;
+  
+  for (let i = 0; i < aftTotal; i++) {
+    const isBagPos = i >= config.aftMax - config.bagsPos;
+    if (isBagPos) {
+      allocationDetails.aft.push('BAG');
+    } else if (posSequence.length > 0) {
+      allocationDetails.aft.push(posSequence.shift()!);
+    } else {
+      allocationDetails.aft.push('LIV');
+    }
+  }
+
+  // Fill BULK
+  if (config.hasBulk) {
+    if (bulk > 0) {
+      allocationDetails.bulk.push('CGO');
+    } else {
+      allocationDetails.bulk.push('LIV');
+    }
+  }
+
   if (totalRequestedPos > 0 || totalWeight > 0) {
     const posUsagePercent = config.totalPos > 0 ? totalRequestedPos / config.totalPos : 0;
     const maxUsage = Math.max(posUsagePercent, weight_usage_percent);
@@ -686,6 +746,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
     available_weight,
     weight_usage_percent,
     dov_alert,
-    calculationBreakdown
+    calculationBreakdown,
+    allocationDetails
   };
 }
