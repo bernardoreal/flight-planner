@@ -1,4 +1,0 @@
-// Placeholder for 192x192 icon - in a real app this would be a binary image
-// For this demo, we'll just use a text file that browsers might ignore or show broken image for, 
-// but the PWA install prompt might still work with the SVG if we reference it correctly in HTML head.
-// Ideally we'd have real PNGs.
