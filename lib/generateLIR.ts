@@ -173,7 +173,7 @@ export const generateLIR = (data: LIRData) => {
   }
 
   // Big central warning
-  doc.setGState(new doc.GState({ opacity: 0.3 }));
+  doc.setGState(new (doc as any).GState({ opacity: 0.3 }));
   doc.setFontSize(50);
   doc.text('USO INTERNO', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 });
   
