@@ -1750,9 +1750,9 @@ export default function Home() {
                       
                       <div className={`p-3 rounded border flex flex-col justify-between ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'bg-[#1b0088]/10 dark:bg-[#1b0088]/20 border-[#1b0088]/30 dark:border-[#1b0088]/40' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-white/5'}`}>
                          <div>
-                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500'}`}>Oversize</span>
+                           <span className={`block text-[9px] uppercase font-bold tracking-wider mb-1 ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500'}`}>Oversize / Overlap</span>
                            <span className={`block font-mono font-bold text-sm ${manifest.calculationBreakdown.limitingFactor === 'OVERSIZE' ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
-                             Restrição Física
+                             {manifest.calculationBreakdown.oversizePos > 0 ? 'Mín. 2 pos por item' : 'Nenhuma restrição'}
                            </span>
                          </div>
                          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-white/5">
