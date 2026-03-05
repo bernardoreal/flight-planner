@@ -156,7 +156,7 @@ export const generateLIR = (data: LIRData) => {
   const pageWidth = doc.internal.pageSize.width;
   
   doc.saveGraphicsState();
-  doc.setGState(new doc.GState({ opacity: 0.2 })); // Increased opacity
+  doc.setGState(new (doc as any).GState({ opacity: 0.2 })); // Increased opacity
   doc.setFontSize(30);
   doc.setTextColor(200, 0, 0); // Red
   doc.setFont('helvetica', 'bold');
