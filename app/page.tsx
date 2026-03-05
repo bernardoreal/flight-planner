@@ -767,19 +767,28 @@ export default function Home() {
                     <Package className="w-3.5 h-3.5" /> Tipo de Carga
                   </label>
                   <select
-                    value={input.cargoType === 'LOOSE' ? 'LOOSE' : `ULD_${input.uldType}`}
+                    value={input.cargoType === 'LOOSE' ? 'LOOSE' : (input.cargoType === 'NON_PALLETIZABLE' ? 'NON_PALLETIZABLE' : (input.cargoType === 'PALLETIZED' ? 'PALLETIZED' : (input.cargoType === 'MIXED' ? 'MIXED' : `ULD_${input.uldType}`)))}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === 'LOOSE') {
-                        setInput({ ...input, cargoType: 'LOOSE', uldType: 'NONE' });
+                        setInput({ ...input, cargoType: 'LOOSE', uldType: 'NONE', pranchas: input.pranchas.map(p => ({...p, type: 'LOOSE'})) });
+                      } else if (val === 'NON_PALLETIZABLE') {
+                        setInput({ ...input, cargoType: 'NON_PALLETIZABLE', uldType: 'NONE', pranchas: input.pranchas.map(p => ({...p, type: 'NON_PALLETIZABLE'})) });
+                      } else if (val === 'PALLETIZED') {
+                        setInput({ ...input, cargoType: 'PALLETIZED', uldType: 'NONE', pranchas: input.pranchas.map(p => ({...p, type: 'PALLETIZED'})) });
+                      } else if (val === 'MIXED') {
+                        setInput({ ...input, cargoType: 'MIXED', uldType: 'NONE', pranchas: input.pranchas.map(p => ({...p, type: 'LOOSE'})) });
                       } else {
                         const uldType = val.split('_')[1] as any;
-                        setInput({ ...input, cargoType: 'ULD', uldType: uldType });
+                        setInput({ ...input, cargoType: 'ULD', uldType: uldType, pranchas: input.pranchas.map(p => ({...p, type: 'ULD'})) });
                       }
                     }}
                     className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all"
                   >
                     <option value="LOOSE" className="bg-white dark:bg-slate-900">Carga Solta (Loose)</option>
+                    <option value="NON_PALLETIZABLE" className="bg-white dark:bg-slate-900">Carga não paletizável</option>
+                    <option value="PALLETIZED" className="bg-white dark:bg-slate-900">Carga Paletizada (Pallets)</option>
+                    <option value="MIXED" className="bg-white dark:bg-slate-900">Misto (Vários Tipos)</option>
                     <optgroup label="ULDs (Contêineres/Pallets)" className="bg-white dark:bg-slate-900">
                       {Object.entries(ULD_SPECS)
                         .filter(([key]) => key !== 'NONE')
@@ -794,7 +803,7 @@ export default function Home() {
 
                 <div className="mb-4">
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                      {input.cargoType === 'LOOSE' ? 'Quantidade de Pallets' : 'Quantidade de ULDs'}
+                      {input.cargoType === 'ULD' ? 'Quantidade de ULDs' : (input.cargoType === 'NON_PALLETIZABLE' ? 'Quantidade de Volumes' : (input.cargoType === 'MIXED' ? 'Quantidade de Itens' : 'Quantidade de Pallets'))}
                     </label>
                     <input
                       type="number"
@@ -835,12 +844,12 @@ export default function Home() {
 
                 <div className="bg-white dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-white/5 shadow-sm mb-4">
                     <p className="text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 font-bold mb-1">
-                      Resumo da Carga ({input.cargoType === 'LOOSE' ? 'Pallets' : 'ULDs'})
+                      Resumo da Carga ({input.cargoType === 'ULD' ? 'ULDs' : (input.cargoType === 'MIXED' ? 'Itens Mistos' : (input.cargoType === 'NON_PALLETIZABLE' ? 'Volumes' : 'Pallets'))})
                     </p>
                     <div className="flex justify-between items-end gap-4">
                       <div>
                         <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                          {input.cargoType === 'LOOSE' ? 'Peso Real Total' : 'Peso Bruto Total (c/ Tara)'}
+                          {input.cargoType === 'ULD' ? 'Peso Bruto Total (c/ Tara)' : 'Peso Real Total'}
                         </span>
                         <span className="text-lg font-bold text-slate-900 dark:text-white font-mono">
                           {input.pranchas.reduce((acc, p) => acc + p.weight, 0).toLocaleString('pt-BR')} kg
@@ -854,15 +863,30 @@ export default function Home() {
                       </div>
                       <div className="text-right">
                         <span className="text-xs text-slate-500 dark:text-slate-400 block">
-                          {input.cargoType === 'LOOSE' ? 'Peso Cubado Total' : 'Peso Volumétrico (Fixo IATA)'}
+                          {(input.cargoType === 'LOOSE' || input.cargoType === 'NON_PALLETIZABLE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED') ? 'Peso Cubado Total' : 'Peso Volumétrico (Fixo IATA)'}
                         </span>
                         {(() => {
                           let totalCubedWeight = 0;
                           let maxCubedWeight = 0;
 
-                          if (input.cargoType === 'LOOSE') {
+                          if (input.cargoType === 'LOOSE' || input.cargoType === 'PALLETIZED') {
                             totalCubedWeight = Math.round(input.pranchas.reduce((acc, p) => {
                               return acc + ((p.length * p.width * p.height) / 6000);
+                            }, 0));
+                            maxCubedWeight = input.pranchas.length * 600;
+                          } else if (input.cargoType === 'NON_PALLETIZABLE') {
+                            totalCubedWeight = Math.round(input.pranchas.reduce((acc, p) => {
+                              return acc + ((p.length * p.width * p.height * p.volumes) / 6000);
+                            }, 0));
+                            maxCubedWeight = input.pranchas.length * 600;
+                          } else if (input.cargoType === 'MIXED') {
+                            totalCubedWeight = Math.round(input.pranchas.reduce((acc, p) => {
+                              const type = p.type || 'LOOSE';
+                              if (type === 'NON_PALLETIZABLE') {
+                                return acc + ((p.length * p.width * p.height * p.volumes) / 6000);
+                              } else {
+                                return acc + ((p.length * p.width * p.height) / 6000);
+                              }
                             }, 0));
                             maxCubedWeight = input.pranchas.length * 600;
                           } else {
@@ -879,7 +903,7 @@ export default function Home() {
                           let cubedWeightColor = "text-indigo-600";
                           let cubedWeightAlert = null;
 
-                          if (input.cargoType === 'LOOSE') {
+                          if (input.cargoType === 'LOOSE' || input.cargoType === 'NON_PALLETIZABLE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED') {
                             if (cubedWeightPercentage >= 0.9) {
                               cubedWeightColor = "text-red-600";
                               cubedWeightAlert = <span className="text-[10px] text-red-600 font-bold block mt-0.5">⚠️ Limite Crítico (90%+)</span>;
@@ -924,7 +948,14 @@ export default function Home() {
                 let groupHasOversize = false;
 
                 input.pranchas.forEach((prancha, index) => {
-                  const cubedWeight = (prancha.length * prancha.width * prancha.height) / 6000;
+                  let cubedWeight = 0;
+                  const itemType = prancha.type || input.cargoType;
+                  
+                  if (itemType === 'NON_PALLETIZABLE') {
+                    cubedWeight = (prancha.length * prancha.width * prancha.height * prancha.volumes) / 6000;
+                  } else {
+                    cubedWeight = (prancha.length * prancha.width * prancha.height) / 6000;
+                  }
                   
                   // If adding this prancha exceeds limits, or if this prancha is oversize and we already have items,
                   // or if we already have an oversize item in the group.
@@ -1058,7 +1089,7 @@ export default function Home() {
                                   <div className="flex items-center gap-2">
                                     <RectangleHorizontal className={`w-4 h-4 ${isExpanded ? 'text-[#1b0088] dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`} />
                                     <h3 className={`text-sm font-bold ${isExpanded ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
-                                      {input.cargoType === 'LOOSE' ? 'Pallet' : 'ULD'} {index + 1}
+                                      {input.cargoType === 'ULD' ? 'ULD' : (input.cargoType === 'NON_PALLETIZABLE' ? 'Volume' : (input.cargoType === 'PALLETIZED' ? 'Pallet' : (prancha.type === 'NON_PALLETIZABLE' ? 'Volume' : 'Pallet')))} {index + 1}
                                     </h3>
                                     {!isExpanded && (
                                       <span className="text-xs text-slate-500 dark:text-slate-400 font-mono ml-2 border-l border-slate-300 dark:border-white/5 pl-2">
@@ -1174,10 +1205,29 @@ export default function Home() {
                                     </div>
                                   )}
                           
+                          {input.cargoType === 'MIXED' && (
+                            <div className="mb-4">
+                              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Tipo deste Item</label>
+                              <select
+                                value={prancha.type || 'LOOSE'}
+                                onChange={(e) => {
+                                  const newPranchas = [...input.pranchas];
+                                  newPranchas[index].type = e.target.value as any;
+                                  setInput({...input, pranchas: newPranchas});
+                                }}
+                                className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all"
+                              >
+                                <option value="LOOSE" className="bg-slate-50 dark:bg-slate-900">Carga Solta (Loose)</option>
+                                <option value="NON_PALLETIZABLE" className="bg-slate-50 dark:bg-slate-900">Carga não paletizável</option>
+                                <option value="PALLETIZED" className="bg-slate-50 dark:bg-slate-900">Carga Paletizada</option>
+                              </select>
+                            </div>
+                          )}
+
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                             <div>
                               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                {input.cargoType === 'LOOSE' ? 'Peso (kg)' : 'Peso Bruto do ULD (kg)'}
+                                {(input.cargoType === 'LOOSE' || input.cargoType === 'NON_PALLETIZABLE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED') ? 'Peso (kg)' : 'Peso Bruto do ULD (kg)'}
                               </label>
                               <input
                                 type="number"
@@ -1192,7 +1242,7 @@ export default function Home() {
                             </div>
                             <div>
                               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                {input.cargoType === 'LOOSE' ? 'Volumes (Unidades no Pallet)' : 'Volumes (Dentro do ULD)'}
+                                {input.cargoType === 'ULD' ? 'Volumes (Dentro do ULD)' : ((input.cargoType === 'NON_PALLETIZABLE' || prancha.type === 'NON_PALLETIZABLE') ? 'Quantidade de Peças' : 'Volumes (Unidades no Pallet)')}
                               </label>
                               <input
                                 type="number"
@@ -1210,7 +1260,7 @@ export default function Home() {
                           <div className="grid grid-cols-3 gap-4 mb-4">
                             <div>
                               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                {input.cargoType === 'LOOSE' ? 'Comp. (cm)' : 'Comp. ULD (cm)'}
+                                {(input.cargoType === 'NON_PALLETIZABLE' || prancha.type === 'NON_PALLETIZABLE') ? 'Comp. Unit. (cm)' : (input.cargoType === 'LOOSE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED' ? 'Comp. (cm)' : 'Comp. ULD (cm)')}
                               </label>
                               <input
                                 type="number"
@@ -1225,7 +1275,7 @@ export default function Home() {
                             </div>
                             <div>
                               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                {input.cargoType === 'LOOSE' ? 'Larg. (cm)' : 'Larg. ULD (cm)'}
+                                {(input.cargoType === 'NON_PALLETIZABLE' || prancha.type === 'NON_PALLETIZABLE') ? 'Larg. Unit. (cm)' : (input.cargoType === 'LOOSE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED' ? 'Larg. (cm)' : 'Larg. ULD (cm)')}
                               </label>
                               <input
                                 type="number"
@@ -1240,7 +1290,7 @@ export default function Home() {
                             </div>
                             <div>
                               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                                {input.cargoType === 'LOOSE' ? 'Alt. (cm)' : 'Alt. ULD (cm)'}
+                                {(input.cargoType === 'NON_PALLETIZABLE' || prancha.type === 'NON_PALLETIZABLE') ? 'Alt. Unit. (cm)' : (input.cargoType === 'LOOSE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED' ? 'Alt. (cm)' : 'Alt. ULD (cm)')}
                               </label>
                               <input
                                 type="number"

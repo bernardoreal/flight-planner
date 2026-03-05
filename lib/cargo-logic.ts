@@ -2,6 +2,7 @@ export type AircraftType = 'A319' | 'A320' | 'A320 CEO' | 'A320 NEO' | 'A321' | 
 
 export interface Prancha {
   id: string;
+  type: 'LOOSE' | 'ULD' | 'NON_PALLETIZABLE' | 'PALLETIZED';
   weight: number;
   volumes: number;
   length: number;
@@ -33,7 +34,7 @@ export interface CargoInput {
   isDGR: boolean;
   isWET: boolean;
   isHUM: boolean;
-  cargoType: 'LOOSE' | 'ULD';
+  cargoType: 'LOOSE' | 'ULD' | 'NON_PALLETIZABLE' | 'PALLETIZED' | 'MIXED';
   uldType: 'AKH' | 'AKE' | 'PKC' | 'PMC' | 'PQA' | 'PAG' | 'P1G' | 'RKN' | 'PLA' | 'KQA' | 'HMA' | 'NONE';
   dgrTypes: string[]; // 'ICE', 'AVI', 'LITHIUM_BULK', 'LITHIUM_EQUIP', 'FLAM', 'EXPLOSIVE', 'GAS', 'TOXIC', 'RADIOACTIVE'
 }
@@ -241,7 +242,7 @@ export function generateManifest(input: CargoInput): ManifestResult {
       posSequence.push('CGO');
     }
   } else {
-    // LOOSE CARGO:
+    // LOOSE CARGO or NON_PALLETIZABLE or PALLETIZED or MIXED:
     let totalLooseWeight = 0;
     let totalLooseCubedWeight = 0;
     let totalOversizePos = 0; // Total positions required by oversize/overlap
@@ -253,9 +254,22 @@ export function generateManifest(input: CargoInput): ManifestResult {
     input.pranchas.forEach((p, index) => {
       const pranchaNum = index + 1;
       
-      totalLooseWeight += p.weight;
-      const cubedWeight = (p.length * p.width * p.height) / 6000;
-      totalLooseCubedWeight += cubedWeight;
+      let cubedWeight = 0;
+      
+      // Use item type if available, otherwise fallback to global input type (unless mixed)
+      const itemType = p.type || input.cargoType;
+
+      if (itemType === 'NON_PALLETIZABLE') {
+        // For NON_PALLETIZABLE, dimensions are per piece, weight is total
+        totalLooseWeight += p.weight;
+        cubedWeight = (p.length * p.width * p.height * p.volumes) / 6000;
+        totalLooseCubedWeight += cubedWeight;
+      } else {
+        // For LOOSE or PALLETIZED (Palletized), dimensions are for the whole pallet
+        totalLooseWeight += p.weight;
+        cubedWeight = (p.length * p.width * p.height) / 6000;
+        totalLooseCubedWeight += cubedWeight;
+      }
 
       // Se for OVERSIZE, ele consome posições exclusivas
       if (p.hasOversize) {
@@ -581,19 +595,18 @@ export function generateManifest(input: CargoInput): ManifestResult {
   let cg_impact = 'Neutro';
   let fuel_penalty = 'N/A';
   
-  if (input.cargoType === 'LOOSE') {
-    if (totalCubedPos > config.totalPos) {
-       cubage_alert = true;
-       warnings.push(`CRÍTICO: Volume total (${totalCubedPos} pos) excede a capacidade física TOTAL da aeronave (${config.totalPos} pos). Impossível embarcar.`);
-       status = 'REJEITADO';
-    } else if (totalCubedPos > config.cargoMax) {
-       cubage_alert = true;
-       warnings.push(`ALERTA DE CUBAGEM: O volume total da carga exige ${totalCubedPos} posições cubadas, excedendo a capacidade padrão de ${config.cargoMax} posições. Risco de corte de carga por falta de espaço físico.`);
-       if (status !== 'REJEITADO') status = 'ALERTA';
-    }
-  }
   
-  if (input.cargoType === 'LOOSE' && posicoes > config.cargoMax) {
+  if ((input.cargoType === 'LOOSE' || input.cargoType === 'NON_PALLETIZABLE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED') && totalCubedPos > config.totalPos) {
+     cubage_alert = true;
+     warnings.push(`CRÍTICO: Volume total (${totalCubedPos} pos) excede a capacidade física TOTAL da aeronave (${config.totalPos} pos). Impossível embarcar.`);
+     status = 'REJEITADO';
+  } else if ((input.cargoType === 'LOOSE' || input.cargoType === 'NON_PALLETIZABLE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED') && totalCubedPos > config.cargoMax) {
+     cubage_alert = true;
+     warnings.push(`ALERTA DE CUBAGEM: O volume total da carga exige ${totalCubedPos} posições cubadas, excedendo a capacidade padrão de ${config.cargoMax} posições. Risco de corte de carga por falta de espaço físico.`);
+     if (status !== 'REJEITADO') status = 'ALERTA';
+  }
+
+  if ((input.cargoType === 'LOOSE' || input.cargoType === 'NON_PALLETIZABLE' || input.cargoType === 'PALLETIZED' || input.cargoType === 'MIXED') && posicoes > config.cargoMax) {
     warnings.push(`CRÍTICO: Capacidade máxima de posições de carga solta excedida (Allotment Padrão: ${config.cargoMax} pos). Necessário: ${posicoes} pos.`);
     status = 'REJEITADO';
   }
