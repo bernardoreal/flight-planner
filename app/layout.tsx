@@ -1,54 +1,32 @@
-import type {Metadata, Viewport} from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
-import './globals.css'; // Global styles
-import { ThemeProvider } from "@/components/theme-provider"
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-sans',
-  display: 'swap',
-});
+import { ThemeProvider } from "@/components/theme-provider";
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-  display: 'swap',
-});
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  themeColor: '#1b0088',
-};
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'LATAM Cargo Global Operations Master',
-  description: 'Ferramenta de planejamento e manifesto técnico de carga para aeronaves da LATAM Brasil.',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'LATAM Cargo',
-  },
-  icons: {
-    icon: '/icon-192.png',
-    apple: '/icon-192.png',
-  },
+  title: "LATAM Cargo Dashboard",
+  description: "Global Operations Master",
 };
 
-export default function RootLayout({children}: {children: React.ReactNode}) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang="pt-BR" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
-      <body className="font-sans antialiased bg-slate-50 dark:bg-[#050025] text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className}>
         <ThemeProvider
-            attribute="class"
-            defaultTheme="dark"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-          </ThemeProvider>
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

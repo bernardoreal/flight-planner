@@ -16,7 +16,8 @@ import {
   Lock,
   Leaf,
   Database,
-  UserCheck
+  UserCheck,
+  Ruler
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -47,12 +48,14 @@ interface AircraftConfig {
   cargoMaxPos: number;
   iceLimitKg: number;
   fwdPriority: boolean;
+  holdDims: string;
+  bulkDims: string;
 }
 
 const FLEET_CONFIGS: Record<AircraftType, AircraftConfig> = {
-  'A319': { type: 'A319', totalPos: 4, bagPos: 2, cargoMaxPos: 2, iceLimitKg: 120, fwdPriority: false },
-  'A320': { type: 'A320', totalPos: 7, bagPos: 3, cargoMaxPos: 4, iceLimitKg: 200, fwdPriority: false },
-  'A321': { type: 'A321', totalPos: 10, bagPos: 3, cargoMaxPos: 7, iceLimitKg: 200, fwdPriority: true },
+  'A319': { type: 'A319', totalPos: 4, bagPos: 2, cargoMaxPos: 2, iceLimitKg: 120, fwdPriority: false, holdDims: "156 x 153 x 114 cm", bulkDims: "180 x 140 x 100 cm" },
+  'A320': { type: 'A320', totalPos: 7, bagPos: 3, cargoMaxPos: 4, iceLimitKg: 200, fwdPriority: false, holdDims: "156 x 153 x 114 cm", bulkDims: "240 x 150 x 110 cm" },
+  'A321': { type: 'A321', totalPos: 10, bagPos: 3, cargoMaxPos: 7, iceLimitKg: 200, fwdPriority: true, holdDims: "156 x 153 x 114 cm", bulkDims: "280 x 160 x 110 cm" },
 };
 
 interface CargoItem {
@@ -269,6 +272,41 @@ export default function Dashboard() {
               )}
             </AnimatePresence>
           </GlassCard>
+
+          {/* Dimensions Card */}
+          {aircraft && (
+            <GlassCard id="dimensions-card" className="p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Ruler className="w-5 h-5 text-indigo-400" />
+                Dimensões de Porão
+              </h2>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-slate-800/30 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#1b0088]/20 flex items-center justify-center text-[#1b0088] font-bold text-xs border border-[#1b0088]/30">
+                      {aircraft.totalPos}
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase font-bold">Posições (AKH)</p>
+                      <p className="text-sm font-mono text-white">{aircraft.holdDims}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-between items-center p-3 bg-slate-800/30 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-bold text-xs border border-emerald-500/20">
+                      BLK
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase font-bold">Bulk / Granel</p>
+                      <p className="text-sm font-mono text-white">{aircraft.bulkDims}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          )}
 
           {/* Stability & Compliance */}
           <GlassCard id="compliance-card" className="p-6">
