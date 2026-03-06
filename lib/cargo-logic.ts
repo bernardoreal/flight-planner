@@ -2,7 +2,7 @@ export type AircraftType = 'A319' | 'A320' | 'A320 CEO' | 'A320 NEO' | 'A321' | 
 
 export interface Prancha {
   id: string;
-  type: 'LOOSE' | 'ULD' | 'NON_PALLETIZABLE' | 'PALLETIZED';
+  type?: 'LOOSE' | 'ULD' | 'NON_PALLETIZABLE' | 'PALLETIZED';
   weight: number;
   volumes: number;
   length: number;
