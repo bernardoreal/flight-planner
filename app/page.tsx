@@ -30,7 +30,6 @@ export default function Home() {
     pranchas: [
       {
         id: '1',
-        type: "LOOSE",
         weight: 1500,
         volumes: 50,
         length: 120,
