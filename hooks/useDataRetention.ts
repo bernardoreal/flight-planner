@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
 const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
 const STORAGE_KEY_LAST_ACTIVE = 'latamCargoLastActive';
@@ -16,7 +16,7 @@ export function useDataRetention() {
     window.location.reload();
   };
 
-  const resetTimer = () => {
+  const resetTimer = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
@@ -27,7 +27,7 @@ export function useDataRetention() {
     timeoutRef.current = setTimeout(() => {
       clearDataAndReload();
     }, INACTIVITY_LIMIT_MS);
-  };
+  }, []);
 
   useEffect(() => {
     // Check on mount if we should already clear
@@ -59,5 +59,5 @@ export function useDataRetention() {
         window.removeEventListener(event, handleActivity);
       });
     };
-  }, []);
+  }, [resetTimer]);
 }

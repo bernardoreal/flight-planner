@@ -39,7 +39,7 @@ export function LegalDisclaimerModal({ onAccept }: { onAccept: () => void }) {
                 <strong className="text-slate-900 dark:text-white">ATENÇÃO OPERADOR:</strong>
               </p>
               <p>
-                Esta ferramenta ("Global Operations Master") é um sistema de <strong>APOIO À DECISÃO</strong> baseado em Inteligência Artificial.
+                Esta ferramenta (&ldquo;Global Operations Master&rdquo;) é um sistema de <strong>APOIO À DECISÃO</strong> baseado em Inteligência Artificial.
               </p>
               <ul className="list-disc pl-5 space-y-2">
                 <li>
