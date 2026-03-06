@@ -735,6 +735,26 @@ export default function Home() {
                     </div>
                   )}
                 </div>
+
+                {/* New Dimensions Card (Left Column) */}
+                <div className="mt-4 bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-white/5 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="bg-slate-200 dark:bg-slate-700/50 p-1 rounded border border-slate-300 dark:border-white/10">
+                      <RectangleHorizontal className="w-3.5 h-3.5 text-slate-800 dark:text-white" />
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Dimensões de Posições</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center bg-white dark:bg-slate-800/60 p-2 rounded-lg border border-slate-200 dark:border-white/5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Posições ({manifest.posicoes})</span>
+                      <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">{manifest.posDims} cm</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white dark:bg-slate-800/60 p-2 rounded-lg border border-slate-200 dark:border-white/5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Bulk (Hold 5)</span>
+                      <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">{manifest.bulkDims} cm</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1619,6 +1639,22 @@ export default function Home() {
                     </div>
                   )}
                 </div>
+                
+                {/* New Dimensions Card (Right Column - Manifest) */}
+                <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4 border border-slate-200 dark:border-white/5">
+                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-3">Dimensões de Posições (Hold/Bulk)</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="bg-white dark:bg-slate-900/40 p-2 rounded border border-slate-200 dark:border-white/5">
+                      <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Hold Positions</p>
+                      <p className="text-xs font-mono font-bold text-slate-900 dark:text-white">{manifest.posicoes} pos - {manifest.posDims}</p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900/40 p-2 rounded border border-slate-200 dark:border-white/5">
+                      <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Bulk (Hold 5)</p>
+                      <p className="text-xs font-mono font-bold text-slate-900 dark:text-white">BLK - {manifest.bulkDims}</p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4 border border-slate-200 dark:border-white/5">
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">Estabilidade</p>
                   <p className={`text-sm font-mono font-bold ${manifest.stability.includes('ALERTA') ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-500 dark:text-emerald-400'}`}>

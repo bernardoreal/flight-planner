@@ -98,6 +98,8 @@ export interface ManifestResult {
   stability: string;
   netAvailability: number;
   clsInfo?: string;
+  posDims?: string;
+  bulkDims?: string;
   allocation: {
     fwd: number;
     aft: number;
@@ -117,14 +119,14 @@ export interface ManifestResult {
 }
 
 const FLEET_CONFIG = {
-  'A319': { totalPos: 4, bagsPos: 2, cargoMax: 2, iceLimit: 120, hasBulk: false, uldMax: 0, doorDims: { w: 181, h: 124 }, fwdMax: 2, aftMax: 2 },
-  'A320': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7, doorDims: { w: 181, h: 124 }, fwdMax: 3, aftMax: 4 },
-  'A320 CEO': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7, doorDims: { w: 181, h: 124 }, fwdMax: 3, aftMax: 4 },
-  'A320 NEO': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7, doorDims: { w: 181, h: 124 }, fwdMax: 3, aftMax: 4 },
-  'A321': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10, doorDims: { w: 181, h: 124 }, fwdMax: 5, aftMax: 5 },
-  'A321 CEO': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10, doorDims: { w: 181, h: 124 }, fwdMax: 5, aftMax: 5 },
-  'A321 NEO': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10, doorDims: { w: 181, h: 124 }, fwdMax: 5, aftMax: 5 },
-  'OTHER': { totalPos: 0, bagsPos: 0, cargoMax: 0, iceLimit: 0, hasBulk: false, uldMax: 0, doorDims: { w: 0, h: 0 }, fwdMax: 0, aftMax: 0 }
+  'A319': { totalPos: 4, bagsPos: 2, cargoMax: 2, iceLimit: 120, hasBulk: false, uldMax: 0, doorDims: { w: 181, h: 124 }, fwdMax: 2, aftMax: 2, posDims: '156 x 153 x 114', bulkDims: 'N/A' },
+  'A320': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7, doorDims: { w: 181, h: 124 }, fwdMax: 3, aftMax: 4, posDims: '156 x 153 x 114', bulkDims: '250 x 120 x 110' },
+  'A320 CEO': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7, doorDims: { w: 181, h: 124 }, fwdMax: 3, aftMax: 4, posDims: '156 x 153 x 114', bulkDims: '250 x 120 x 110' },
+  'A320 NEO': { totalPos: 7, bagsPos: 3, cargoMax: 4, iceLimit: 200, hasBulk: true, uldMax: 7, doorDims: { w: 181, h: 124 }, fwdMax: 3, aftMax: 4, posDims: '156 x 153 x 114', bulkDims: '250 x 120 x 110' },
+  'A321': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10, doorDims: { w: 181, h: 124 }, fwdMax: 5, aftMax: 5, posDims: '156 x 153 x 114', bulkDims: '300 x 120 x 110' },
+  'A321 CEO': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10, doorDims: { w: 181, h: 124 }, fwdMax: 5, aftMax: 5, posDims: '156 x 153 x 114', bulkDims: '300 x 120 x 110' },
+  'A321 NEO': { totalPos: 10, bagsPos: 3, cargoMax: 7, iceLimit: 200, hasBulk: true, uldMax: 10, doorDims: { w: 181, h: 124 }, fwdMax: 5, aftMax: 5, posDims: '156 x 153 x 114', bulkDims: '300 x 120 x 110' },
+  'OTHER': { totalPos: 0, bagsPos: 0, cargoMax: 0, iceLimit: 0, hasBulk: false, uldMax: 0, doorDims: { w: 0, h: 0 }, fwdMax: 0, aftMax: 0, posDims: 'N/A', bulkDims: 'N/A' }
 };
 
 export function generateManifest(input: CargoInput): ManifestResult {
@@ -154,6 +156,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
       stability: 'N/A',
       netAvailability: 0,
       clsInfo: input.clsInfo,
+      posDims: 'N/A',
+      bulkDims: 'N/A',
       allocation: { fwd: 0, aft: 0, bulk: 0 },
       max_cargo_weight: 0,
       total_weight: 0,
@@ -753,6 +757,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
     stability,
     netAvailability: Math.max(0, config.totalPos - config.bagsPos - posicoes - bulk),
     clsInfo: input.clsInfo,
+    posDims: config.posDims,
+    bulkDims: config.bulkDims,
     allocation: { fwd, aft, bulk },
     max_cargo_weight,
     total_weight: totalWeight,
