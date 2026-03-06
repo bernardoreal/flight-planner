@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { motion } from 'motion/react';
-import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera, RectangleHorizontal, X, ImagePlus, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera, RectangleHorizontal, X, ImagePlus, ChevronDown, ChevronUp, FileText, Ruler } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { AircraftType, CargoInput, ManifestResult, generateManifest, ULD_SPECS } from '@/lib/cargo-logic';
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
@@ -740,7 +740,7 @@ export default function Home() {
                 <div className="mt-4 bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-white/5 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="bg-slate-200 dark:bg-slate-700/50 p-1 rounded border border-slate-300 dark:border-white/10">
-                      <RectangleHorizontal className="w-3.5 h-3.5 text-slate-800 dark:text-white" />
+                      <Ruler className="w-3.5 h-3.5 text-slate-800 dark:text-white" />
                     </div>
                     <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Dimensões de Posições</p>
                   </div>
@@ -1642,7 +1642,9 @@ export default function Home() {
                 
                 {/* New Dimensions Card (Right Column - Manifest) */}
                 <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4 border border-slate-200 dark:border-white/5">
-                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-3">Dimensões de Posições (Hold/Bulk)</p>
+                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <Ruler className="w-3.5 h-3.5" /> Dimensões de Posições (Hold/Bulk)
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="bg-white dark:bg-slate-900/40 p-2 rounded border border-slate-200 dark:border-white/5">
                       <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Hold Positions</p>
