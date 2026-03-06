@@ -30,7 +30,6 @@ export default function Home() {
     pranchas: [
       {
         id: '1',
-        type: 'LOOSE',
         weight: 1500,
         volumes: 50,
         length: 120,
@@ -822,7 +821,6 @@ export default function Home() {
                           for (let i = currentPranchas.length; i < count; i++) {
                             currentPranchas.push({
                               id: Math.random().toString(36).substr(2, 9),
-                              type: input.cargoType === 'MIXED' ? 'LOOSE' : (input.cargoType === 'ULD' ? 'ULD' : input.cargoType) as any,
                               weight: 100,
                               volumes: 1, // Pallet is treated as 1 volume unit for dimensions
                               length: 120,
