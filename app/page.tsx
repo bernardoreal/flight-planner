@@ -164,7 +164,7 @@ export default function Home() {
       const searchDateObj = selectedSearchDate ? new Date(selectedSearchDate + 'T12:00:00') : now;
       const searchDateStr = searchDateObj.toLocaleDateString('pt-BR');
       
-      const prompt = `ATUE COMO UM ESPECIALISTA SÊNIOR EM OPERAÇÕES AÉREAS E RASTREAMENTO DE VOOS (FLIGHT DISPATCHER).
+      const prompt = `ATUE COMO UM ESPECIALISTA SÊNIOR EM OPERAÇÕES AÉREAS E RASTREAMENTO DE VOOS (FLIGHT DISPATCHER) DA LATAM CARGO.
       
       Sua missão é descobrir o MODELO EXATO E CONFIRMADO da aeronave para o voo ${input.flightCode} da LATAM Brasil para a data de ${searchDateStr}.
       
@@ -181,11 +181,13 @@ export default function Home() {
          - Site oficial da LATAM
       3. Se a data for FUTURA, procure pela aeronave ESCALADA (Scheduled). Se for PASSADA, procure a que REALMENTE OPEROU.
       
-      REGRAS DE SAÍDA:
+      REGRAS DE SAÍDA E INTELIGÊNCIA DE AERONAVE:
       - Modelo: Identifique se é A319, A320, A321, B767, B787, B777. Mapeie para "A319", "A320", "A321" ou "OTHER".
       - Origem/Destino: Use os códigos IATA reais (ex: GRU, MIA, LIS).
       - Data: A data do voo retornado (DD/MM/YYYY).
       - CLS (Cargo Loading System): Verifique e informe se a aeronave identificada possui o sistema de carregamento mecanizado (CLS) instalado nos compartimentos 1, 2, 3 e 4.
+      - Dimensões Físicas: Forneça as dimensões do porão (Hold) e Bulk com base no modelo (ex: A320 = Hold: 156x153x114 cm | Bulk: 250x120x110 cm).
+      - Door Check: Valide mentalmente se as dimensões padrão da porta (181x124 cm) são aplicáveis.
       
       Responda APENAS com o JSON final no seguinte formato:
       \`\`\`json
@@ -194,7 +196,7 @@ export default function Home() {
         "origin": "GRU",
         "destination": "MIA",
         "date": "${searchDateStr}",
-        "clsInfo": "Aeronave equipada com CLS nos compartimentos 1, 2, 3 e 4.",
+        "clsInfo": "Aeronave equipada com CLS nos compartimentos 1, 2, 3 e 4. Dimensões Hold: 156x153x114 cm. Bulk: 300x120x110 cm. Porta: 181x124 cm.",
         "reasoning": "CROSS-CHECK REALIZADO: Encontrado no histórico do FlightRadar24 como aeronave escalada para ${searchDateStr}. Confirmado também no FlightAware."
       }
       \`\`\``;
