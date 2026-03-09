@@ -1952,16 +1952,18 @@ export default function Home() {
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Build-up Optimization Tool</span>
               </div>
             </div>
-            <div className="text-sm text-slate-700 dark:text-slate-300 text-left md:text-right max-w-3xl leading-relaxed">
-              <p className="mb-2">
-                <strong className="text-[#e3004a] uppercase font-bold">Aviso Legal Importante:</strong> Esta aplicação é uma ferramenta de apoio à decisão.
-                Os resultados são estimativas baseadas em IA.
+            <div className="text-xs text-slate-700 dark:text-slate-300 text-left md:text-right max-w-4xl leading-relaxed space-y-2">
+              <p>
+                <strong className="text-[#e3004a] uppercase font-bold">Aviso de Compliance Operacional (ANAC / LATAM):</strong> Esta aplicação é um <em>Shadow System</em> (ferramenta de apoio ao planejamento).
               </p>
-              <p className="font-semibold text-slate-900 dark:text-white mb-2">
-                O uso desta ferramenta NÃO substitui os sistemas oficiais de peso e balanceamento (Lido/Flight, NetLine/Load) nem os manuais operacionais aprovados pela LATAM e homologados pela ANAC.
+              <p>
+                <strong>1. Peso e Balanceamento (RBAC 121):</strong> Estimativas de peso/dimensões via IA são estritamente para pré-planejamento de praça. Toda carga <strong>DEVE</strong> ser pesada em balanças calibradas e aferidas antes do embarque. Esta ferramenta <strong>NÃO SUBSTITUI</strong> os sistemas oficiais de despacho (ex: Altea FM, Sabre).
               </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                A validação final e a segurança do voo são de responsabilidade exclusiva do Despachante Operacional de Voo (DOV) e do Supervisor de Carga.
+              <p>
+                <strong>2. Artigos Perigosos (RBAC 175 / IATA DGR):</strong> A sinalização de DGR/NOTOC neste aplicativo não isenta a obrigatoriedade do preenchimento do checklist IATA por pessoal certificado (Categoria 6).
+              </p>
+              <p>
+                <strong>3. Segurança da Informação (LGPD):</strong> Evite o upload de imagens que contenham dados sensíveis de clientes, números de AWB legíveis ou informações confidenciais não anonimizadas.
               </p>
             </div>
           </div>
