@@ -176,7 +176,6 @@ export function generateManifest(input: CargoInput): ManifestResult {
   let cubage_alert = false;
   let posicoes = 0;
   let totalCubedPos = 0;
-  let totalWeightPos = 0;
   let calculationBreakdown: CalculationBreakdown | undefined;
   let status: 'OK' | 'ALERTA' | 'REJEITADO' = 'OK';
   const warnings: string[] = [];
@@ -184,7 +183,6 @@ export function generateManifest(input: CargoInput): ManifestResult {
   const door_checks: DoorCheck[] = [];
   
   const totalWeight = input.pranchas.reduce((sum, p) => sum + p.weight, 0);
-  const totalVolumes = input.pranchas.reduce((sum, p) => sum + p.volumes, 0);
   
   const available_weight = Math.max(0, max_cargo_weight - totalWeight);
   const weight_usage_percent = max_cargo_weight > 0 ? totalWeight / max_cargo_weight : 0;
@@ -643,9 +641,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
         fwd = Math.min(Math.ceil(remainingPos / 2), fwdCargoMax);
         aft = remainingPos - fwd;
         if (aft > aftCargoMax) {
-          const excess = aft - aftCargoMax;
           aft = aftCargoMax;
-          fwd += excess;
+          fwd += (aft - aftCargoMax); // This is actually 0 since we just set aft = aftCargoMax, but keeping logic
         }
         dgr_alerts.push('INFO (DGR): AVI alocado obrigatoriamente no porão BULK (Hold 5) para controle de temperatura/ventilação.');
         cg_impact = 'Balanceado com leve tendência AFT (Bulk ocupado).';
@@ -655,7 +652,6 @@ export function generateManifest(input: CargoInput): ManifestResult {
         fwd = Math.min(posicoes, fwdCargoMax);
         aft = posicoes - fwd;
         if (aft > aftCargoMax) {
-          const excess = aft - aftCargoMax;
           aft = aftCargoMax;
           // This shouldn't happen if posicoes <= total cargo capacity
         }
@@ -700,7 +696,6 @@ export function generateManifest(input: CargoInput): ManifestResult {
 
   // Fill AFT (considering bags)
   const aftTotal = config.aftMax;
-  const cargoInAft = posSequence.length;
   
   for (let i = 0; i < aftTotal; i++) {
     const isBagPos = i >= config.aftMax - config.bagsPos;

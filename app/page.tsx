@@ -3,9 +3,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { motion } from 'motion/react';
-import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, FileJson, Search, Loader2, MapPin, Users, Package, Camera, RectangleHorizontal, X, ImagePlus, ChevronDown, ChevronUp, FileText, Ruler } from 'lucide-react';
+import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, Search, Loader2, Package, RectangleHorizontal, X, ImagePlus, ChevronDown, ChevronUp, FileText, Ruler } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { AircraftType, CargoInput, ManifestResult, generateManifest, ULD_SPECS } from '@/lib/cargo-logic';
+import { AircraftType, CargoInput, Prancha, generateManifest, ULD_SPECS } from '@/lib/cargo-logic';
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { generateLIR, LIRPosition } from '@/lib/generateLIR';
@@ -188,7 +188,7 @@ export default function Home() {
         }
       });
 
-      const text = response.text;
+      const text = response.text || '';
       return extractJSON(text);
     } catch (e) {
       console.error("Deep Search Error:", e);
@@ -233,7 +233,7 @@ export default function Home() {
       let reasoning = data.reasoning;
       let origin = data.origin;
       let destination = data.destination;
-      let date = data.date;
+      const date = data.date;
       let clsInfo = data.clsInfo;
 
       // FALLBACK: If AirLabs fails or returns OTHER, try Gemini Deep Search
@@ -275,9 +275,10 @@ export default function Home() {
       setFlightDate(date || searchDateStr);
       setFlightSource('realtime_grounding');
       setSearchProgress(100);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Flight fetch error:', err);
-      setFlightError(`Erro ao buscar dados do voo: ${err.message}`);
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      setFlightError(`Erro ao buscar dados do voo: ${errorMessage}`);
       
       setInput(prev => ({
         ...prev,
@@ -444,7 +445,7 @@ export default function Home() {
         return updated;
       });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Image analysis error:', err);
       alert('Falha ao analisar as imagens. Tente novamente ou insira os dados manualmente.');
     } finally {
@@ -457,7 +458,7 @@ export default function Home() {
     const positions: LIRPosition[] = [];
     let currentWeight = 0;
     let currentCubed = 0;
-    let currentGroupPranchas: any[] = [];
+    let currentGroupPranchas: Prancha[] = [];
     let groupHasOversize = false;
 
     const finalizeGroup = () => {
@@ -538,7 +539,6 @@ export default function Home() {
 
     // Determine limits based on fleet config
     const fwdLimit = manifest.allocation.fwd;
-    const aftLimit = manifest.allocation.aft;
 
     positions.forEach((pos, idx) => {
         let label = '';
@@ -857,7 +857,7 @@ export default function Home() {
                       } else if (val === 'MIXED') {
                         setInput({ ...input, cargoType: 'MIXED', uldType: 'NONE', pranchas: input.pranchas.map(p => ({...p, type: 'LOOSE'})) });
                       } else {
-                        const uldType = val.split('_')[1] as any;
+                        const uldType = val.split('_')[1] as CargoInput['uldType'];
                         setInput({ ...input, cargoType: 'ULD', uldType: uldType, pranchas: input.pranchas.map(p => ({...p, type: 'ULD'})) });
                       }
                     }}
@@ -1018,11 +1018,11 @@ export default function Home() {
             <div className="space-y-6">
               {(() => {
                 // Bin packing logic for UI grouping
-                const groups: { posNum: number, pranchas: any[], totalWeight: number, totalCubed: number, hasOversize: boolean }[] = [];
+                const groups: { posNum: number, pranchas: (Prancha & { originalIndex: number })[], totalWeight: number, totalCubed: number, hasOversize: boolean }[] = [];
                 let currentPos = 1;
                 let currentWeight = 0;
                 let currentCubed = 0;
-                let currentGroupPranchas: any[] = [];
+                let currentGroupPranchas: (Prancha & { originalIndex: number })[] = [];
                 let groupHasOversize = false;
 
                 input.pranchas.forEach((prancha, index) => {
@@ -1290,7 +1290,7 @@ export default function Home() {
                                 value={prancha.type || 'LOOSE'}
                                 onChange={(e) => {
                                   const newPranchas = [...input.pranchas];
-                                  newPranchas[index].type = e.target.value as any;
+                                  newPranchas[index].type = e.target.value as Prancha['type'];
                                   setInput({...input, pranchas: newPranchas});
                                 }}
                                 className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] outline-none transition-all"
@@ -1389,7 +1389,7 @@ export default function Home() {
                               value={prancha.specialCargoType || 'NONE'}
                               onChange={(e) => {
                                 const newPranchas = [...input.pranchas];
-                                newPranchas[index].specialCargoType = e.target.value as any;
+                                newPranchas[index].specialCargoType = e.target.value as Prancha['specialCargoType'];
                                 if (e.target.value !== 'ICE') {
                                   newPranchas[index].iceWeight = undefined;
                                 }
@@ -1486,7 +1486,7 @@ export default function Home() {
                             value={prancha.dgrPackingGroup || 'N/A'}
                             onChange={(e) => {
                               const newPranchas = [...input.pranchas];
-                              newPranchas[index].dgrPackingGroup = e.target.value as any;
+                              newPranchas[index].dgrPackingGroup = e.target.value as Prancha['dgrPackingGroup'];
                               setInput({...input, pranchas: newPranchas});
                             }}
                             className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 outline-none transition-all"

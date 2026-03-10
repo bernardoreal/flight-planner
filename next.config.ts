@@ -1,6 +1,9 @@
 import type {NextConfig} from 'next';
 
-const withPWA = require('next-pwa')({
+// @ts-expect-error - next-pwa does not have types
+import withPWAFunc from 'next-pwa';
+
+const withPWA = withPWAFunc({
   dest: 'public',
   register: true,
   skipWaiting: true,

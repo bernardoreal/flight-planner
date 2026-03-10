@@ -24,7 +24,6 @@ export function NetworkStatus() {
 
   useEffect(() => {
     if (isOnline) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowStatus(true);
       const timer = setTimeout(() => setShowStatus(false), 3000);
       return () => clearTimeout(timer);

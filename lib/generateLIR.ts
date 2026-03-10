@@ -1,6 +1,5 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Prancha } from '@/lib/cargo-logic';
 
 export interface LIRPosition {
   posId: string;
@@ -74,12 +73,12 @@ export const generateLIR = (data: LIRData) => {
   doc.text(data.route, 152, 58);
 
   // --- Loading Table ---
-  const tableBody: any[] = [];
+  const tableBody: (string | { content: string; colSpan: number; styles: { fillColor: [number, number, number]; textColor: number; fontStyle: 'bold' } })[][] = [];
   
   const processPositions = (title: string, positions: LIRPosition[], color: [number, number, number]) => {
     if (positions.length === 0) return;
     
-    tableBody.push([{ content: title, colSpan: 7, styles: { fillColor: color, textColor: 255, fontStyle: 'bold' as const } }]);
+    tableBody.push([{ content: title, colSpan: 7, styles: { fillColor: color, textColor: 255, fontStyle: 'bold' } }]);
     
     positions.forEach(pos => {
       tableBody.push([
@@ -116,7 +115,7 @@ export const generateLIR = (data: LIRData) => {
     }
   });
 
-  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
 
   // --- Summary Box ---
   doc.setDrawColor(0);
@@ -156,7 +155,7 @@ export const generateLIR = (data: LIRData) => {
   const pageWidth = doc.internal.pageSize.width;
   
   doc.saveGraphicsState();
-  doc.setGState(new (doc as any).GState({ opacity: 0.2 })); // Increased opacity
+  doc.setGState(new (doc as unknown as { GState: new (args: { opacity: number }) => unknown }).GState({ opacity: 0.2 })); // Increased opacity
   doc.setFontSize(30);
   doc.setTextColor(200, 0, 0); // Red
   doc.setFont('helvetica', 'bold');
@@ -173,7 +172,7 @@ export const generateLIR = (data: LIRData) => {
   }
 
   // Big central warning
-  doc.setGState(new (doc as any).GState({ opacity: 0.3 }));
+  doc.setGState(new (doc as unknown as { GState: new (args: { opacity: number }) => unknown }).GState({ opacity: 0.3 }));
   doc.setFontSize(50);
   doc.text('USO INTERNO', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 });
   

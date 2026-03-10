@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { 
   Plane, 
   Package, 
@@ -10,7 +10,6 @@ import {
   Trash2, 
   Plus, 
   ChevronRight, 
-  Info,
   CheckCircle2,
   FileText,
   Lock,
@@ -20,14 +19,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  Cell 
 } from 'recharts';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -176,7 +167,7 @@ export default function Dashboard() {
     setCargoItems(cargoItems.filter(i => i.id !== id));
   };
 
-  const updateCargo = (id: string, field: keyof CargoItem, value: any) => {
+  const updateCargo = (id: string, field: keyof CargoItem, value: string | number | boolean) => {
     setCargoItems(cargoItems.map(i => i.id === id ? { ...i, [field]: value } : i));
   };
 
