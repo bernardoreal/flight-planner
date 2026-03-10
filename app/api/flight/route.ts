@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'edge';
 
 export async function GET(req: NextRequest) {
+  console.log('GET request received');
   const { searchParams } = new URL(req.url);
   let flightCode = searchParams.get('flightCode');
   const date = searchParams.get('date');
@@ -24,16 +25,21 @@ export async function GET(req: NextRequest) {
   }
 
   const apiKey = process.env.AIRLABS_API_KEY;
+  console.log('API Key present:', !!apiKey);
   if (!apiKey) {
     return NextResponse.json({ error: 'AirLabs API key not configured' }, { status: 500 });
   }
 
   try {
+    console.log('Starting flight data fetch for:', flightCode);
     let flightData = null;
     let dataSource = '';
 
     // 1. Try the specific 'flight' endpoint first (Flight Information API)
-    const infoResponse = await fetch(`https://airlabs.co/api/v9/flight?flight_iata=${encodeURIComponent(flightCode)}&api_key=${apiKey}`);
+    const url = `https://airlabs.co/api/v9/flight?flight_iata=${encodeURIComponent(flightCode)}&api_key=${apiKey}`;
+    console.log('Fetching from:', url);
+    const infoResponse = await fetch(url);
+    console.log('Info response status:', infoResponse.status);
     if (infoResponse.ok) {
       const infoData = await infoResponse.json();
       if (infoData.response && !infoData.error) {
