@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     console.error('AirLabs API error:', error);
-    return NextResponse.json({ error: 'Failed to fetch flight data' }, { status: 500 });
+    return NextResponse.json({ error: `Failed to fetch flight data: ${error instanceof Error ? error.message : String(error)}` }, { status: 500 });
   }
 }
 
