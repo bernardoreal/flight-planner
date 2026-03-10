@@ -66,6 +66,10 @@ export default function Home() {
 
   const [isDateInputFocused, setIsDateInputFocused] = useState(false);
   const [searchProgress, setSearchProgress] = useState(0);
+  const [isDeepSearching, setIsDeepSearching] = useState(false);
+  const [apiCount, setApiCount] = useState<number>(0);
+  const API_LIMIT = 1000;
+  const API_WARNING_THRESHOLD = 950;
 
   // Helper to format date for display
   const formatDateToBR = (isoDate: string) => {
@@ -98,6 +102,9 @@ export default function Home() {
     
     // Load saved input state from localStorage
     try {
+      const savedCount = localStorage.getItem('airlabs_api_count');
+      if (savedCount) setApiCount(parseInt(savedCount, 10));
+
       const savedInput = localStorage.getItem('latamCargoInput');
       if (savedInput) {
         const parsed = JSON.parse(savedInput);
@@ -143,9 +150,56 @@ export default function Home() {
     }
   };
 
+  const fetchFlightWithAI = async (flightCode: string, date: string) => {
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('Gemini API key missing for deep search');
+      return null;
+    }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `Qual o modelo exato de aeronave (A319, A320 ou A321) operando o voo ${flightCode} na data ${date}? 
+      Pesquise em sites de rastreamento de voos como FlightRadar24, FlightAware ou no site da LATAM.
+      Se não encontrar o voo exato para hoje, procure o modelo padrão usado nesta rota.
+      Responda APENAS o JSON.
+      Exemplo: {"aircraft": "A320", "reasoning": "Voo LA3465 opera normalmente com A320-200 conforme histórico do FlightRadar24."}`;
+
+      const response = await ai.models.generateContent({
+        model: AI_MODEL,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          tools: [{ googleSearch: {} }],
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              aircraft: { 
+                type: Type.STRING, 
+                description: "O modelo da aeronave: A319, A320 ou A321"
+              },
+              reasoning: { 
+                type: Type.STRING,
+                description: "Explicação da busca realizada"
+              }
+            },
+            required: ["aircraft", "reasoning"]
+          }
+        }
+      });
+
+      const text = response.text;
+      return extractJSON(text);
+    } catch (e) {
+      console.error("Deep Search Error:", e);
+      return null;
+    }
+  };
+
   const handleFetchFlight = async () => {
     if (!input.flightCode) return;
     setIsLoadingFlight(true);
+    setIsDeepSearching(false);
     setSearchProgress(0);
     setFlightError('');
     setInput(prev => ({ ...prev, aiReasoning: undefined }));
@@ -160,77 +214,52 @@ export default function Home() {
 
     try {
       const now = new Date();
-      const isoDateTime = now.toISOString();
       const searchDateObj = selectedSearchDate ? new Date(selectedSearchDate + 'T12:00:00') : now;
-      const searchDateStr = searchDateObj.toLocaleDateString('pt-BR');
+      const searchDateStr = searchDateObj.toISOString().split('T')[0];
       
-      const prompt = `ATUE COMO UM ESPECIALISTA SÊNIOR EM OPERAÇÕES AÉREAS E RASTREAMENTO DE VOOS (FLIGHT DISPATCHER) DA LATAM CARGO.
-      
-      Sua missão é descobrir o MODELO EXATO E CONFIRMADO da aeronave para o voo ${input.flightCode} da LATAM Brasil para a data de ${searchDateStr}.
-      
-      Contexto Temporal Atual:
-      - ISO DateTime: ${isoDateTime}
-      - Data de Referência da Busca: ${searchDateStr}
-      
-      PROTOCOLO DE VERIFICAÇÃO RIGOROSA E CROSS-CHECK OBRIGATÓRIO:
-      1. Você DEVE realizar buscas EXTENSIVAS no Google para o voo "${input.flightCode}" na data "${searchDateStr}" focando em sites de rastreamento em tempo real.
-      2. CROSS-CHECK OBRIGATÓRIO: Você NÃO PODE confiar em apenas uma fonte. Você DEVE cruzar os dados entre pelo menos duas destas fontes:
-         - FlightRadar24
-         - FlightAware
-         - RadarBox
-         - Site oficial da LATAM
-      3. Se a data for FUTURA, procure pela aeronave ESCALADA (Scheduled). Se for PASSADA, procure a que REALMENTE OPEROU.
-      
-      REGRAS DE SAÍDA E INTELIGÊNCIA DE AERONAVE:
-      - Modelo: Identifique se é A319, A320, A321, B767, B787, B777. Mapeie para "A319", "A320", "A321" ou "OTHER".
-      - Origem/Destino: Use os códigos IATA reais (ex: GRU, MIA, LIS).
-      - Data: A data do voo retornado (DD/MM/YYYY).
-      - CLS (Cargo Loading System): Verifique e informe se a aeronave identificada possui o sistema de carregamento mecanizado (CLS) instalado nos compartimentos 1, 2, 3 e 4.
-      - Dimensões Físicas: Forneça as dimensões do porão (Hold) e Bulk com base no modelo (ex: A320 = Hold: 156x153x114 cm | Bulk: 250x120x110 cm).
-      - Door Check: Valide mentalmente se as dimensões padrão da porta (181x124 cm) são aplicáveis.
-      
-      Responda APENAS com o JSON final no seguinte formato:
-      \`\`\`json
-      {
-        "aircraft": "A321",
-        "origin": "GRU",
-        "destination": "MIA",
-        "date": "${searchDateStr}",
-        "clsInfo": "Aeronave equipada com CLS nos compartimentos 1, 2, 3 e 4. Dimensões Hold: 156x153x114 cm. Bulk: 300x120x110 cm. Porta: 181x124 cm.",
-        "reasoning": "CROSS-CHECK REALIZADO: Encontrado no histórico do FlightRadar24 como aeronave escalada para ${searchDateStr}. Confirmado também no FlightAware."
-      }
-      \`\`\``;
+      const response = await fetch(`/api/flight?flightCode=${input.flightCode}&date=${searchDateStr}`);
+      const data = await response.json();
 
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('A chave de API (NEXT_PUBLIC_GEMINI_API_KEY) não foi encontrada. Verifique as variáveis de ambiente.');
-      }
+      // Increment API counter
+      const newCount = apiCount + 1;
+      setApiCount(newCount);
+      localStorage.setItem('airlabs_api_count', newCount.toString());
 
-      const ai = new GoogleGenAI({ apiKey });
-      const model = ai.models.generateContent({
-        model: AI_MODEL,
-        contents: prompt,
-        config: {
-          tools: [{ googleSearch: {} }],
-          responseMimeType: "application/json"
-        }
-      });
-
-      const response = await model;
-      const text = response.text;
-      
-      if (!text) {
-        throw new Error('Resposta vazia da IA');
-      }
-
-      const data = extractJSON(text);
-      
-      if (!data) {
-        console.error("Raw AI Response:", text);
-        throw new Error('Formato de resposta inválido da IA. Tente novamente.');
+      if (data.error && data.error !== 'Voo não encontrado nos registros atuais ou programados.') {
+        throw new Error(data.error);
       }
       
       let aircraft = data.aircraft;
+      let reasoning = data.reasoning;
+      let origin = data.origin;
+      let destination = data.destination;
+      let date = data.date;
+      let clsInfo = data.clsInfo;
+
+      // FALLBACK: If AirLabs fails or returns OTHER, try Gemini Deep Search
+      if (!aircraft || aircraft === 'OTHER' || data.error) {
+        setIsDeepSearching(true);
+        setSearchProgress(95);
+        const aiData = await fetchFlightWithAI(input.flightCode, searchDateStr);
+        
+        if (aiData && aiData.aircraft && ['A319', 'A320', 'A321'].includes(aiData.aircraft)) {
+          aircraft = aiData.aircraft;
+          reasoning = `Busca Profunda via IA: ${aiData.reasoning}`;
+          // Try to keep origin/dest if AirLabs at least gave us that
+          origin = origin || prevOriginDest.origin;
+          destination = destination || prevOriginDest.destination;
+          
+          // Fetch clsInfo for the AI detected aircraft
+          const clsResponse = await fetch(`/api/flight/cls?aircraft=${aircraft}`);
+          if (clsResponse.ok) {
+            const clsData = await clsResponse.json();
+            clsInfo = clsData.clsInfo;
+          }
+        } else if (data.error) {
+          throw new Error(data.error);
+        }
+      }
+
       if (!['A319', 'A320', 'A321'].includes(aircraft)) {
         aircraft = 'OTHER';
       }
@@ -238,16 +267,17 @@ export default function Home() {
       setInput(prev => ({
         ...prev,
         aircraft: aircraft as AircraftType,
-        origin: data.origin || prev.origin,
-        destination: data.destination || prev.destination,
-        aiReasoning: data.reasoning,
-        clsInfo: data.clsInfo
+        origin: origin || prev.origin,
+        destination: destination || prev.destination,
+        aiReasoning: reasoning,
+        clsInfo: clsInfo
       }));
-      setFlightDate(data.date || searchDateStr);
+      setFlightDate(date || searchDateStr);
       setFlightSource('realtime_grounding');
       setSearchProgress(100);
     } catch (err: any) {
       console.error('Flight fetch error:', err);
+      setFlightError(`Erro ao buscar dados do voo: ${err.message}`);
       
       setInput(prev => ({
         ...prev,
@@ -257,18 +287,21 @@ export default function Home() {
       }));
       setFlightDate('');
       setFlightSource(null);
-
-      if (err.message && err.message.includes('OPENROUTER_API_KEY')) {
-        setFlightError('Chave de API do OpenRouter não configurada.');
-      } else {
-        setFlightError(err.message || 'Falha ao buscar dados em tempo real do voo.');
-      }
     } finally {
       clearInterval(progressInterval);
       setIsLoadingFlight(false);
+      setIsDeepSearching(false);
       setTimeout(() => setSearchProgress(0), 1000);
     }
   };
+
+  // Helper to store previous origin/dest for fallback
+  const [prevOriginDest, setPrevOriginDest] = useState({ origin: '', destination: '' });
+  useEffect(() => {
+    if (input.origin || input.destination) {
+      setPrevOriginDest({ origin: input.origin, destination: input.destination });
+    }
+  }, [input.origin, input.destination]);
 
   const handleAddImage = (e: React.ChangeEvent<HTMLInputElement>, pranchaId: string) => {
     const files = Array.from(e.target.files || []);
@@ -612,18 +645,37 @@ export default function Home() {
               <p className="text-[10px] font-medium text-white/70 uppercase tracking-widest mt-0.5 hidden sm:block">Global Operations Master</p>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-white/80 text-sm font-medium">
-            <span className="hidden sm:flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md border border-white/10 text-[10px] sm:text-xs max-w-[140px] sm:max-w-none">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-              <span className="truncate">AI: {AI_MODEL}</span>
-            </span>
-            <span className="hidden md:flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> QA Certified</span>
-            <span className="hidden md:flex items-center gap-1.5"><CheckCircle className="w-4 h-4" /> System Online</span>
-            <div className="ml-2 pl-2 border-l border-white/20">
+          <div className="flex items-center gap-2 sm:gap-4 text-white/80 text-sm font-medium">
+            <div className="flex flex-col items-end sm:items-center sm:flex-row gap-1 sm:gap-4">
+              <span className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md border border-white/10 text-[9px] sm:text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse shrink-0"></span>
+                <span className="truncate">API: AirLabs</span>
+              </span>
+              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[9px] sm:text-xs transition-colors ${apiCount >= API_WARNING_THRESHOLD ? 'bg-red-500/20 border-red-500/50 text-red-200' : 'bg-white/10 border-white/10 text-white/80'}`}>
+                <Package className="w-3 h-3 shrink-0" />
+                <span>Reqs: {apiCount}/{API_LIMIT}</span>
+                {apiCount >= API_WARNING_THRESHOLD && (
+                  <AlertTriangle className="w-3 h-3 text-red-400 animate-bounce" />
+                )}
+              </div>
+            </div>
+            <div className="hidden lg:flex items-center gap-4">
+              <span className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md border border-white/10 text-[10px] sm:text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                <span className="truncate">AI: {AI_MODEL}</span>
+              </span>
+              <span className="flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> QA</span>
+            </div>
+            <div className="ml-1 sm:ml-2 pl-1 sm:pl-2 border-l border-white/20">
               <ThemeToggle />
             </div>
           </div>
         </div>
+        {apiCount >= API_WARNING_THRESHOLD && (
+          <div className="bg-red-600 text-white text-[10px] sm:text-xs py-1 px-4 text-center font-bold animate-pulse">
+            ALERTA: Limite de requisições AirLabs atingindo 95%! ({apiCount}/{API_LIMIT})
+          </div>
+        )}
       </header>
 
       <main className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10">
@@ -641,14 +693,14 @@ export default function Home() {
                 <div className="mb-6 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Código do Voo</label>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Código do Voo (IATA)</label>
                       <input
                         type="text"
                         value={input.flightCode}
-                        onChange={(e) => setInput({ ...input, flightCode: e.target.value.toUpperCase() })}
+                        onChange={(e) => setInput({ ...input, flightCode: e.target.value.replace(/\s+/g, '').toUpperCase() })}
                         onKeyDown={(e) => e.key === 'Enter' && handleFetchFlight()}
                         className="w-full bg-slate-50 dark:bg-slate-800/50 p-2.5 text-sm rounded-lg border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#1b0088] focus:border-transparent outline-none transition-all uppercase font-mono"
-                        placeholder="Ex: LA3465"
+                        placeholder="Ex: LA3465, JJ8070"
                       />
                     </div>
                     <div>
@@ -678,7 +730,11 @@ export default function Home() {
                     )}
                     <div className="relative z-10 flex items-center gap-2">
                       {isLoadingFlight ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-                      <span>{isLoadingFlight ? `Buscando... ${searchProgress}%` : 'Buscar Dados em Tempo Real'}</span>
+                      <span>
+                        {isLoadingFlight 
+                          ? (isDeepSearching ? `Busca Profunda IA... ${searchProgress}%` : `Buscando... ${searchProgress}%`) 
+                          : 'Buscar Dados em Tempo Real'}
+                      </span>
                     </div>
                   </button>
                   
