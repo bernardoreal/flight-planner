@@ -218,6 +218,10 @@ export default function Home() {
       const searchDateStr = searchDateObj.toISOString().split('T')[0];
       
       const response = await fetch(`/api/flight?flightCode=${input.flightCode}&date=${searchDateStr}`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Erro do servidor: ${response.status} - ${text}`);
+      }
       const data = await response.json();
 
       // Increment API counter
