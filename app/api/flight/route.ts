@@ -3,29 +3,32 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'edge';
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  let flightCode = searchParams.get('flightCode');
-  const date = searchParams.get('date');
-
-  if (!flightCode) {
-    return NextResponse.json({ error: 'Flight code is required' }, { status: 400 });
-  }
-
-  flightCode = flightCode.replace(/\s+/g, '').toUpperCase();
-  const iataRegex = /^[A-Z0-9]{2}\d{1,4}[A-Z]?$/;
+  console.log('GET request started');
   
-  if (!iataRegex.test(flightCode)) {
-    return NextResponse.json({ 
-      error: 'Formato IATA inválido. Use o padrão de 2 letras/números da cia + número do voo (ex: LA3465, JJ8070).' 
-    }, { status: 400 });
-  }
-
-  const apiKey = process.env.AIRLABS_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'AirLabs API key not configured' }, { status: 500 });
-  }
-
   try {
+    const { searchParams } = new URL(req.url);
+    console.log('Search params parsed');
+    
+    let flightCode = searchParams.get('flightCode');
+    const date = searchParams.get('date');
+    console.log('Flight code:', flightCode);
+
+    if (!flightCode) {
+      console.log('Flight code missing');
+      return NextResponse.json({ error: 'Flight code is required' }, { status: 400 });
+    }
+
+    flightCode = flightCode.replace(/\s+/g, '').toUpperCase();
+    console.log('Sanitized flight code:', flightCode);
+
+    const apiKey = process.env.AIRLABS_API_KEY;
+    console.log('API Key check:', apiKey ? 'Present' : 'Missing');
+
+    if (!apiKey) {
+      return NextResponse.json({ error: 'AirLabs API key not configured' }, { status: 500 });
+    }
+
+    console.log('Starting flight data fetch for:', flightCode);
     let flightData = null;
     let dataSource = '';
 
