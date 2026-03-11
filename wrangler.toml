@@ -3,5 +3,5 @@ compatibility_date = "2024-03-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".vercel/output/static"
 
-vars]
+[vars]
 AIRLABS_API_KEY = "9248969d-6cca-40c1-85a7-83eeac74a4da"
