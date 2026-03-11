@@ -219,8 +219,14 @@ export default function Home() {
       
       const response = await fetch(`/api/flight?flightCode=${input.flightCode}&date=${searchDateStr}`);
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Erro do servidor: ${response.status} - ${text}`);
+        let errorText = await response.text();
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorText = errorJson.error || errorText;
+        } catch (e) {
+          // Ignore parsing error, use original text
+        }
+        throw new Error(`Erro: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
 
