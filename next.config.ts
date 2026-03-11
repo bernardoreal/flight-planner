@@ -12,6 +12,7 @@ const withPWA = withPWAFunc({
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  output: 'standalone',
   typescript: {
     ignoreBuildErrors: false,
   },
