@@ -1,5 +1,6 @@
 export const runtime = 'edge';
 
 export async function GET() {
-  return new Response('Hello World - Test Route', { status: 200 });
+  const apiKey = process.env.AIRLABS_API_KEY;
+  return new Response(`Test Route - API Key exists: ${!!apiKey}`, { status: 200 });
 }
