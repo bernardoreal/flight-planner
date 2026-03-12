@@ -1,15 +1,5 @@
 import type {NextConfig} from 'next';
 
-// @ts-expect-error - next-pwa does not have types
-import withPWAFunc from 'next-pwa';
-
-const withPWA = withPWAFunc({
-  dest: 'public',
-  register: true,
-  skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
-});
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
@@ -28,7 +18,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // output: 'export',
   transpilePackages: ['motion'],
   turbopack: {},
   webpack: (config, {dev}) => {
@@ -43,4 +32,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withPWA(nextConfig);
+export default nextConfig;
