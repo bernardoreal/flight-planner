@@ -55,6 +55,7 @@ export default function Home() {
 
   const [showJson, setShowJson] = useState(false);
   const [isLoadingFlight, setIsLoadingFlight] = useState(false);
+  const [isDeepSearching, setIsDeepSearching] = useState(false);
   const [flightError, setFlightError] = useState('');
   const [flightSource, setFlightSource] = useState<'realtime_grounding' | null>(null);
   const [flightDate, setFlightDate] = useState<string>('');
@@ -153,21 +154,29 @@ export default function Home() {
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (!apiKey) {
       console.error('Gemini API key missing for flight search');
-      return null;
+      throw new Error('Chave da API do Gemini (IA) não configurada no Cloudflare.');
     }
 
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Provide detailed information for flight ${flightCode} on date ${date}. 
-      Search for the exact aircraft type (e.g., A319, A320, A321, A320neo, A321neo) currently scheduled or operating this flight.
-      Include:
-      - Airline name
-      - Aircraft type (ICAO code)
-      - Departure airport (IATA)
-      - Arrival airport (IATA)
-      - Flight status
-      - Reasoning for this aircraft type (e.g., flight history, scheduled aircraft)
-      Return the response in JSON format.`;
+      const prompt = `Busque informações detalhadas do voo ${flightCode} para a data ${date}. 
+      O foco principal é identificar o modelo exato da aeronave (A319, A320, A321, A320neo ou A321neo) que está operando ou escalada para este voo da LATAM Brasil.
+      
+      Instruções:
+      1. Use a busca do Google para encontrar o histórico recente ou a escala do voo.
+      2. Identifique o aeroporto de origem (IATA) e destino (IATA).
+      3. Determine o modelo da aeronave. Se for da família A320, especifique se é A319, A320 ou A321.
+      4. Retorne APENAS um JSON válido.
+      
+      Campos do JSON:
+      - airline: nome da companhia
+      - aircraft: modelo (A319, A320, A321 ou OTHER)
+      - departure_airport: código IATA
+      - arrival_airport: código IATA
+      - status: status do voo
+      - reasoning: breve explicação de como o modelo foi identificado.
+      
+      Retorne o JSON no formato solicitado.`;
 
       const response = await ai.models.generateContent({
         model: AI_MODEL,
@@ -197,9 +206,14 @@ export default function Home() {
       });
 
       const text = response.text || '';
+      console.log("AI Flight Search Response:", text);
       return extractJSON(text);
     } catch (e) {
-      console.error("Flight Search Error:", e);
+      console.error("Flight Search Error (Gemini):", e);
+      // Re-throw to be caught by the main handler if it's a configuration or quota error
+      if (e instanceof Error && (e.message.includes('API_KEY') || e.message.includes('quota'))) {
+        throw e;
+      }
       return null;
     }
   };
@@ -207,6 +221,7 @@ export default function Home() {
   const handleFetchFlight = async () => {
     if (!input.flightCode) return;
     setIsLoadingFlight(true);
+    setIsDeepSearching(false);
     setSearchProgress(0);
     setFlightError('');
     setInput(prev => ({ ...prev, aiReasoning: undefined }));
@@ -233,21 +248,34 @@ export default function Home() {
 
       let flightData: FlightInfo | null = null;
       let source = '';
+      let normalizedFlightCode = input.flightCode.replace(/\s+/g, '').toUpperCase();
+      
+      // Normalizar código de voo (adicionar LA se for apenas números)
+      if (/^\d+$/.test(normalizedFlightCode)) {
+        normalizedFlightCode = 'LA' + normalizedFlightCode;
+      }
 
       // 1. Try AirLabs API first
       try {
-        const response = await fetch(`/api/flight?flightCode=${input.flightCode}&date=${searchDateStr}`);
+        const response = await fetch(`/api/flight?flightCode=${normalizedFlightCode}&date=${searchDateStr}`);
         if (response.ok) {
           flightData = await response.json();
           source = 'AirLabs API';
+        } else if (response.status === 500) {
+          const errData = await response.json();
+          if (errData.error?.includes('API Key missing')) {
+            throw new Error('Chave da API AirLabs não configurada no Cloudflare.');
+          }
         }
-      } catch (e) {
-        console.warn('AirLabs API failed, falling back to Gemini Grounding', e);
+      } catch (e: unknown) {
+        console.warn('AirLabs API failed:', e);
+        if (e instanceof Error && e.message?.includes('Cloudflare')) throw e;
       }
 
       // 2. Fallback to Gemini Grounding for maximum accuracy or if AirLabs fails
       if (!flightData || !['A319', 'A320', 'A321'].some(t => flightData?.aircraft?.includes(t))) {
-        const aiData = await fetchFlightWithAI(input.flightCode, searchDateStr);
+        setIsDeepSearching(true);
+        const aiData = await fetchFlightWithAI(normalizedFlightCode, searchDateStr);
         if (aiData && aiData.aircraft) {
           flightData = {
             aircraft: aiData.aircraft,
@@ -296,6 +324,7 @@ export default function Home() {
     } finally {
       clearInterval(progressInterval);
       setIsLoadingFlight(false);
+      setIsDeepSearching(false);
       setTimeout(() => setSearchProgress(0), 1000);
     }
   };
@@ -728,7 +757,7 @@ export default function Home() {
                       {isLoadingFlight ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                       <span>
                         {isLoadingFlight 
-                          ? `Buscando... ${searchProgress}%` 
+                          ? (isDeepSearching ? `Busca Profunda IA... ${searchProgress}%` : `Buscando... ${searchProgress}%`) 
                           : 'Buscar Dados em Tempo Real'}
                       </span>
                     </div>

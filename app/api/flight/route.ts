@@ -18,7 +18,14 @@ export async function GET(req: NextRequest) {
       return new Response(JSON.stringify({ error: 'Server configuration error: API Key missing' }), { status: 500 });
     }
 
-    const sanitizedFlightCode = flightCode.replace(/\s+/g, '').toUpperCase();
+    let sanitizedFlightCode = flightCode.replace(/\s+/g, '').toUpperCase();
+    
+    // If it's just numbers, assume LATAM (LA)
+    if (/^\d+$/.test(sanitizedFlightCode)) {
+      sanitizedFlightCode = 'LA' + sanitizedFlightCode;
+    }
+
+    console.log(`Searching AirLabs for: ${sanitizedFlightCode}`);
     
     // Attempt multiple AirLabs endpoints for better coverage
     const endpoints = [
