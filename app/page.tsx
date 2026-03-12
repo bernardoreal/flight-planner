@@ -66,7 +66,6 @@ export default function Home() {
 
   const [isDateInputFocused, setIsDateInputFocused] = useState(false);
   const [searchProgress, setSearchProgress] = useState(0);
-  const [isDeepSearching, setIsDeepSearching] = useState(false);
   const [apiCount, setApiCount] = useState<number>(0);
   const API_LIMIT = 1000;
   const API_WARNING_THRESHOLD = 950;
@@ -225,14 +224,47 @@ export default function Home() {
       const searchDateObj = selectedSearchDate ? new Date(selectedSearchDate + 'T12:00:00') : now;
       const searchDateStr = searchDateObj.toISOString().split('T')[0];
       
-      const aiData = await fetchFlightWithAI(input.flightCode, searchDateStr);
-      
-      if (!aiData || !aiData.aircraft) {
+      interface FlightInfo {
+        aircraft: string;
+        origin?: string;
+        destination?: string;
+        reasoning?: string;
+      }
+
+      let flightData: FlightInfo | null = null;
+      let source = '';
+
+      // 1. Try AirLabs API first
+      try {
+        const response = await fetch(`/api/flight?flightCode=${input.flightCode}&date=${searchDateStr}`);
+        if (response.ok) {
+          flightData = await response.json();
+          source = 'AirLabs API';
+        }
+      } catch (e) {
+        console.warn('AirLabs API failed, falling back to Gemini Grounding', e);
+      }
+
+      // 2. Fallback to Gemini Grounding for maximum accuracy or if AirLabs fails
+      if (!flightData || !['A319', 'A320', 'A321'].some(t => flightData?.aircraft?.includes(t))) {
+        const aiData = await fetchFlightWithAI(input.flightCode, searchDateStr);
+        if (aiData && aiData.aircraft) {
+          flightData = {
+            aircraft: aiData.aircraft,
+            origin: aiData.departure_airport,
+            destination: aiData.arrival_airport,
+            reasoning: aiData.reasoning
+          };
+          source = 'Gemini Grounding (High Accuracy)';
+        }
+      }
+
+      if (!flightData || !flightData.aircraft) {
         throw new Error('Não foi possível encontrar informações para este voo.');
       }
 
-      let aircraft = aiData.aircraft;
-      // Normalize aircraft type to match expected types
+      let aircraft = flightData.aircraft;
+      // Normalize aircraft type
       if (aircraft.includes('A319')) aircraft = 'A319';
       else if (aircraft.includes('A320')) aircraft = 'A320';
       else if (aircraft.includes('A321')) aircraft = 'A321';
@@ -241,9 +273,9 @@ export default function Home() {
       setInput(prev => ({
         ...prev,
         aircraft: aircraft as AircraftType,
-        origin: aiData.departure_airport || prev.origin,
-        destination: aiData.arrival_airport || prev.destination,
-        aiReasoning: `Busca via IA: ${aiData.reasoning}`,
+        origin: flightData.origin || prev.origin,
+        destination: flightData.destination || prev.destination,
+        aiReasoning: flightData.reasoning ? `Busca via IA: ${flightData.reasoning}` : `Dados via ${source}`,
       }));
       setFlightDate(searchDateStr);
       setFlightSource('realtime_grounding');
@@ -267,14 +299,6 @@ export default function Home() {
       setTimeout(() => setSearchProgress(0), 1000);
     }
   };
-
-  // Helper to store previous origin/dest for fallback
-  const [prevOriginDest, setPrevOriginDest] = useState({ origin: '', destination: '' });
-  useEffect(() => {
-    if (input.origin || input.destination) {
-      setPrevOriginDest({ origin: input.origin, destination: input.destination });
-    }
-  }, [input.origin, input.destination]);
 
   const handleAddImage = (e: React.ChangeEvent<HTMLInputElement>, pranchaId: string) => {
     const files = Array.from(e.target.files || []);
@@ -704,7 +728,7 @@ export default function Home() {
                       {isLoadingFlight ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                       <span>
                         {isLoadingFlight 
-                          ? (isDeepSearching ? `Busca Profunda IA... ${searchProgress}%` : `Buscando... ${searchProgress}%`) 
+                          ? `Buscando... ${searchProgress}%` 
                           : 'Buscar Dados em Tempo Real'}
                       </span>
                     </div>
