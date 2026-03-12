@@ -153,17 +153,22 @@ export default function Home() {
   const fetchFlightWithAI = async (flightCode: string, date: string) => {
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (!apiKey) {
-      console.error('Gemini API key missing for deep search');
+      console.error('Gemini API key missing for flight search');
       return null;
     }
 
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Qual o modelo exato de aeronave (A319, A320 ou A321) operando o voo ${flightCode} na data ${date}? 
-      Pesquise em sites de rastreamento de voos como FlightRadar24, FlightAware ou no site da LATAM.
-      Se não encontrar o voo exato para hoje, procure o modelo padrão usado nesta rota.
-      Responda APENAS o JSON.
-      Exemplo: {"aircraft": "A320", "reasoning": "Voo LA3465 opera normalmente com A320-200 conforme histórico do FlightRadar24."}`;
+      const prompt = `Provide detailed information for flight ${flightCode} on date ${date}. 
+      Search for the exact aircraft type (e.g., A319, A320, A321, A320neo, A321neo) currently scheduled or operating this flight.
+      Include:
+      - Airline name
+      - Aircraft type (ICAO code)
+      - Departure airport (IATA)
+      - Arrival airport (IATA)
+      - Flight status
+      - Reasoning for this aircraft type (e.g., flight history, scheduled aircraft)
+      Return the response in JSON format.`;
 
       const response = await ai.models.generateContent({
         model: AI_MODEL,
@@ -174,16 +179,20 @@ export default function Home() {
           responseSchema: {
             type: Type.OBJECT,
             properties: {
+              airline: { type: Type.STRING },
               aircraft: { 
                 type: Type.STRING, 
-                description: "O modelo da aeronave: A319, A320 ou A321"
+                description: "The exact aircraft type: A319, A320, A321, A320neo, A321neo, or OTHER"
               },
+              departure_airport: { type: Type.STRING },
+              arrival_airport: { type: Type.STRING },
+              status: { type: Type.STRING },
               reasoning: { 
                 type: Type.STRING,
-                description: "Explicação da busca realizada"
+                description: "Explanation of the search results and how the aircraft type was determined"
               }
             },
-            required: ["aircraft", "reasoning"]
+            required: ["airline", "aircraft", "departure_airport", "arrival_airport", "status", "reasoning"]
           }
         }
       });
@@ -191,7 +200,7 @@ export default function Home() {
       const text = response.text || '';
       return extractJSON(text);
     } catch (e) {
-      console.error("Deep Search Error:", e);
+      console.error("Flight Search Error:", e);
       return null;
     }
   };
@@ -199,7 +208,6 @@ export default function Home() {
   const handleFetchFlight = async () => {
     if (!input.flightCode) return;
     setIsLoadingFlight(true);
-    setIsDeepSearching(false);
     setSearchProgress(0);
     setFlightError('');
     setInput(prev => ({ ...prev, aiReasoning: undefined }));
@@ -217,72 +225,27 @@ export default function Home() {
       const searchDateObj = selectedSearchDate ? new Date(selectedSearchDate + 'T12:00:00') : now;
       const searchDateStr = searchDateObj.toISOString().split('T')[0];
       
-      const response = await fetch(`/api/flight?flightCode=${input.flightCode}&date=${searchDateStr}`);
-      if (!response.ok) {
-        let errorText = await response.text();
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorText = errorJson.error || errorText;
-        } catch (e) {
-          // Ignore parsing error, use original text
-        }
-        throw new Error(`Erro: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-
-      // Increment API counter
-      const newCount = apiCount + 1;
-      setApiCount(newCount);
-      localStorage.setItem('airlabs_api_count', newCount.toString());
-
-      if (data.error && data.error !== 'Voo não encontrado nos registros atuais ou programados.') {
-        throw new Error(data.error);
-      }
+      const aiData = await fetchFlightWithAI(input.flightCode, searchDateStr);
       
-      let aircraft = data.aircraft;
-      let reasoning = data.reasoning;
-      let origin = data.origin;
-      let destination = data.destination;
-      const date = data.date;
-      let clsInfo = data.clsInfo;
-
-      // FALLBACK: If AirLabs fails or returns OTHER, try Gemini Deep Search
-      if (!aircraft || aircraft === 'OTHER' || data.error) {
-        setIsDeepSearching(true);
-        setSearchProgress(95);
-        const aiData = await fetchFlightWithAI(input.flightCode, searchDateStr);
-        
-        if (aiData && aiData.aircraft && ['A319', 'A320', 'A321'].includes(aiData.aircraft)) {
-          aircraft = aiData.aircraft;
-          reasoning = `Busca Profunda via IA: ${aiData.reasoning}`;
-          // Try to keep origin/dest if AirLabs at least gave us that
-          origin = origin || prevOriginDest.origin;
-          destination = destination || prevOriginDest.destination;
-          
-          // Fetch clsInfo for the AI detected aircraft
-          const clsResponse = await fetch(`/api/flight/cls?aircraft=${aircraft}`);
-          if (clsResponse.ok) {
-            const clsData = await clsResponse.json();
-            clsInfo = clsData.clsInfo;
-          }
-        } else if (data.error) {
-          throw new Error(data.error);
-        }
+      if (!aiData || !aiData.aircraft) {
+        throw new Error('Não foi possível encontrar informações para este voo.');
       }
 
-      if (!['A319', 'A320', 'A321'].includes(aircraft)) {
-        aircraft = 'OTHER';
-      }
-      
+      let aircraft = aiData.aircraft;
+      // Normalize aircraft type to match expected types
+      if (aircraft.includes('A319')) aircraft = 'A319';
+      else if (aircraft.includes('A320')) aircraft = 'A320';
+      else if (aircraft.includes('A321')) aircraft = 'A321';
+      else aircraft = 'OTHER';
+
       setInput(prev => ({
         ...prev,
         aircraft: aircraft as AircraftType,
-        origin: origin || prev.origin,
-        destination: destination || prev.destination,
-        aiReasoning: reasoning,
-        clsInfo: clsInfo
+        origin: aiData.departure_airport || prev.origin,
+        destination: aiData.arrival_airport || prev.destination,
+        aiReasoning: `Busca via IA: ${aiData.reasoning}`,
       }));
-      setFlightDate(date || searchDateStr);
+      setFlightDate(searchDateStr);
       setFlightSource('realtime_grounding');
       setSearchProgress(100);
     } catch (err: unknown) {
@@ -301,7 +264,6 @@ export default function Home() {
     } finally {
       clearInterval(progressInterval);
       setIsLoadingFlight(false);
-      setIsDeepSearching(false);
       setTimeout(() => setSearchProgress(0), 1000);
     }
   };
