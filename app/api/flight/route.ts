@@ -44,6 +44,9 @@ export async function GET(req: NextRequest) {
     }
 
     for (const code of codesToTry) {
+      const prefix = code.substring(0, 2);
+      const number = code.substring(2);
+      
       // Attempt multiple AirLabs endpoints for each code
       const endpoints = [
         `https://airlabs.co/api/v9/flight?flight_iata=${encodeURIComponent(code)}&api_key=${apiKey}`,
@@ -51,16 +54,33 @@ export async function GET(req: NextRequest) {
         `https://airlabs.co/api/v9/flights?flight_iata=${encodeURIComponent(code)}&api_key=${apiKey}`
       ];
 
+      // If we have a clear prefix and number, try the specific parameters too
+      if (prefix.length === 2 && /^\d+$/.test(number)) {
+        endpoints.push(`https://airlabs.co/api/v9/schedules?airline_iata=${prefix}&flight_number=${number}&api_key=${apiKey}`);
+        endpoints.push(`https://airlabs.co/api/v9/flights?airline_iata=${prefix}&flight_number=${number}&api_key=${apiKey}`);
+      }
+
       for (const url of endpoints) {
         try {
           const res = await fetch(url);
-          if (!res.ok) continue;
-          
           const data = await res.json();
-          if (data.error || !data.response) continue;
+          
+          if (data.error) {
+            console.warn(`AirLabs API error from ${url}:`, data.error.message);
+            // If it's an API key error, return it immediately to inform the user
+            if (data.error.code === 'api_key_invalid' || data.error.code === 'not_found') {
+               // We don't return 404 immediately because other endpoints might work
+               if (data.error.code === 'api_key_invalid') {
+                 return new Response(JSON.stringify({ error: `AirLabs API Key Error: ${data.error.message}` }), { status: 401 });
+               }
+            }
+            continue;
+          }
+
+          if (!data.response) continue;
 
           let result: AirLabsFlight | null = null;
-          if (url.includes('/flight') && !Array.isArray(data.response)) {
+          if (url.includes('/flight?') && !Array.isArray(data.response)) {
             result = data.response;
           } else if (Array.isArray(data.response) && data.response.length > 0) {
             // For /flights or /schedules, find the best match (one with aircraft info)
