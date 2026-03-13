@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { motion } from 'motion/react';
-import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, Search, Loader2, Package, RectangleHorizontal, X, ImagePlus, ChevronDown, ChevronUp, FileText, Ruler } from 'lucide-react';
+import { Plane, AlertTriangle, CheckCircle, Info, ShieldAlert, Search, Loader2, Package, RectangleHorizontal, X, ImagePlus, ChevronDown, ChevronUp, FileText, Ruler, Settings } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { AircraftType, CargoInput, Prancha, generateManifest, ULD_SPECS } from '@/lib/cargo-logic';
 import { AircraftHoldMap } from '@/components/AircraftHoldMap';
@@ -67,8 +67,11 @@ export default function Home() {
 
   const [isDateInputFocused, setIsDateInputFocused] = useState(false);
   const [searchProgress, setSearchProgress] = useState(0);
-  const [apiCount, setApiCount] = useState<number>(0);
+  const [airlabsCount, setAirlabsCount] = useState<number>(0);
+  const [geminiCount, setGeminiCount] = useState<number>(0);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const API_LIMIT = 1000;
+  const GEMINI_LIMIT = 1500; // Free tier is roughly 15 RPM, let's say 1500/day
   const API_WARNING_THRESHOLD = 950;
 
   // Helper to format date for display
@@ -102,8 +105,11 @@ export default function Home() {
     
     // Load saved input state from localStorage
     try {
-      const savedCount = localStorage.getItem('airlabs_api_count');
-      if (savedCount) setApiCount(parseInt(savedCount, 10));
+      const savedAirlabsCount = localStorage.getItem('airlabs_api_count');
+      if (savedAirlabsCount) setAirlabsCount(parseInt(savedAirlabsCount, 10));
+
+      const savedGeminiCount = localStorage.getItem('gemini_api_count');
+      if (savedGeminiCount) setGeminiCount(parseInt(savedGeminiCount, 10));
 
       const savedInput = localStorage.getItem('latamCargoInput');
       if (savedInput) {
@@ -128,6 +134,22 @@ export default function Home() {
   }, [input]);
 
   // Helper to extract JSON from AI response
+  const incrementApiCount = (type: 'airlabs' | 'gemini') => {
+    if (type === 'airlabs') {
+      setAirlabsCount(prev => {
+        const next = prev + 1;
+        localStorage.setItem('airlabs_api_count', next.toString());
+        return next;
+      });
+    } else {
+      setGeminiCount(prev => {
+        const next = prev + 1;
+        localStorage.setItem('gemini_api_count', next.toString());
+        return next;
+      });
+    }
+  };
+
   const extractJSON = (text: string) => {
     try {
       // 1. Try to find JSON inside markdown code blocks
@@ -158,6 +180,7 @@ export default function Home() {
     }
 
     try {
+      incrementApiCount('gemini');
       const ai = new GoogleGenAI({ apiKey });
       const prompt = `Busque informações detalhadas do voo ${flightCode} para a data ${date}. 
       O foco principal é identificar o modelo exato da aeronave (A319, A320, A321, A320neo ou A321neo) que está operando ou escalada para este voo da LATAM Brasil.
@@ -257,6 +280,7 @@ export default function Home() {
 
       // 1. Try AirLabs API first
       try {
+        incrementApiCount('airlabs');
         const response = await fetch(`/api/flight?flightCode=${normalizedFlightCode}&date=${searchDateStr}`);
         if (response.ok) {
           flightData = await response.json();
@@ -391,6 +415,7 @@ export default function Home() {
 
       const ai = new GoogleGenAI({ apiKey });
       
+      incrementApiCount('gemini');
       const parts = await Promise.all(images.map(async (img) => {
         const file = img.file;
         const reader = new FileReader();
@@ -676,29 +701,22 @@ export default function Home() {
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse shrink-0"></span>
                 <span className="truncate">API: AirLabs</span>
               </span>
-              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[9px] sm:text-xs transition-colors ${apiCount >= API_WARNING_THRESHOLD ? 'bg-red-500/20 border-red-500/50 text-red-200' : 'bg-white/10 border-white/10 text-white/80'}`}>
-                <Package className="w-3 h-3 shrink-0" />
-                <span>Reqs: {apiCount}/{API_LIMIT}</span>
-                {apiCount >= API_WARNING_THRESHOLD && (
-                  <AlertTriangle className="w-3 h-3 text-red-400 animate-bounce" />
-                )}
+              <div className="ml-1 sm:ml-2 pl-1 sm:pl-2 border-l border-white/20 flex items-center gap-2">
+                <ThemeToggle />
+                <button 
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-white"
+                  title="Configurações de API"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
               </div>
-            </div>
-            <div className="hidden lg:flex items-center gap-4">
-              <span className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md border border-white/10 text-[10px] sm:text-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-                <span className="truncate">AI: {AI_MODEL}</span>
-              </span>
-              <span className="flex items-center gap-1.5"><ShieldAlert className="w-4 h-4" /> QA</span>
-            </div>
-            <div className="ml-1 sm:ml-2 pl-1 sm:pl-2 border-l border-white/20">
-              <ThemeToggle />
             </div>
           </div>
         </div>
-        {apiCount >= API_WARNING_THRESHOLD && (
+        {(airlabsCount >= API_WARNING_THRESHOLD || geminiCount >= 1400) && (
           <div className="bg-red-600 text-white text-[10px] sm:text-xs py-1 px-4 text-center font-bold animate-pulse">
-            ALERTA: Limite de requisições AirLabs atingindo 95%! ({apiCount}/{API_LIMIT})
+            ALERTA: Limite de requisições API atingindo nível crítico! Verifique as configurações.
           </div>
         )}
       </header>
@@ -2050,6 +2068,104 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-white/10"
+          >
+            <div className="p-6 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-[#1b0088] dark:text-blue-400" />
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Configurações de API</h2>
+              </div>
+              <button 
+                onClick={() => setIsSettingsOpen(false)}
+                className="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <Plane className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">AirLabs API</p>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-widest">Flight Data</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-mono font-bold text-slate-900 dark:text-white">{airlabsCount} / {API_LIMIT}</p>
+                    <div className="w-24 h-1.5 bg-slate-100 dark:bg-white/5 rounded-full mt-1 overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-500 ${airlabsCount >= API_WARNING_THRESHOLD ? 'bg-red-500' : 'bg-blue-500'}`}
+                        style={{ width: `${Math.min(100, (airlabsCount / API_LIMIT) * 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <Package className="w-5 h-5 text-emerald-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">Google Gemini</p>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-widest">AI Analysis</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-mono font-bold text-slate-900 dark:text-white">{geminiCount} / {GEMINI_LIMIT}</p>
+                    <div className="w-24 h-1.5 bg-slate-100 dark:bg-white/5 rounded-full mt-1 overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-500 ${geminiCount >= 1400 ? 'bg-red-500' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min(100, (geminiCount / GEMINI_LIMIT) * 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-900/30 flex items-start gap-3">
+                <Info className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                  Os limites exibidos são baseados no uso local deste navegador. As APIs podem ter limites globais diferentes dependendo do seu plano.
+                </p>
+              </div>
+
+              <button 
+                onClick={() => {
+                  if (confirm('Deseja zerar os contadores de API?')) {
+                    setAirlabsCount(0);
+                    setGeminiCount(0);
+                    localStorage.removeItem('airlabs_api_count');
+                    localStorage.removeItem('gemini_api_count');
+                  }
+                }}
+                className="w-full py-2.5 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-dashed border-red-200 dark:border-red-900/30"
+              >
+                Zerar Contadores
+              </button>
+            </div>
+            
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-white/5">
+              <button 
+                onClick={() => setIsSettingsOpen(false)}
+                className="w-full py-3 bg-[#1b0088] hover:bg-[#1b0088]/90 text-white rounded-xl font-bold transition-all shadow-lg"
+              >
+                Fechar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
       <NetworkStatus />
       {!isDisclaimerAccepted && (
         <LegalDisclaimerModal onAccept={() => setIsDisclaimerAccepted(true)} />
