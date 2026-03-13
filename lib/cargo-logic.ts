@@ -100,6 +100,8 @@ export interface ManifestResult {
   clsInfo?: string;
   posDims?: string;
   bulkDims?: string;
+  fwdMax?: number;
+  aftMax?: number;
   allocation: {
     fwd: number;
     aft: number;
@@ -158,6 +160,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
       clsInfo: input.clsInfo,
       posDims: 'N/A',
       bulkDims: 'N/A',
+      fwdMax: 0,
+      aftMax: 0,
       allocation: { fwd: 0, aft: 0, bulk: 0 },
       max_cargo_weight: 0,
       total_weight: 0,
@@ -754,6 +758,8 @@ export function generateManifest(input: CargoInput): ManifestResult {
     clsInfo: input.clsInfo,
     posDims: config.posDims,
     bulkDims: config.bulkDims,
+    fwdMax: config.fwdMax,
+    aftMax: config.aftMax,
     allocation: { fwd, aft, bulk },
     max_cargo_weight,
     total_weight: totalWeight,

@@ -847,7 +847,11 @@ export default function Home() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center bg-white dark:bg-slate-800/60 p-2 rounded-lg border border-slate-200 dark:border-white/5">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Posições ({manifest.posicoes})</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">FWD ({manifest.fwdMax})</span>
+                      <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">{manifest.posDims} cm</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white dark:bg-slate-800/60 p-2 rounded-lg border border-slate-200 dark:border-white/5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">AFT ({manifest.aftMax})</span>
                       <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">{manifest.posDims} cm</span>
                     </div>
                     <div className="flex justify-between items-center bg-white dark:bg-slate-800/60 p-2 rounded-lg border border-slate-200 dark:border-white/5">
@@ -1746,10 +1750,16 @@ export default function Home() {
                   <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
                     <Ruler className="w-3.5 h-3.5" /> Dimensões de Posições (Hold/Bulk)
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="bg-white dark:bg-slate-900/40 p-2 rounded border border-slate-200 dark:border-white/5">
-                      <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Hold Positions</p>
-                      <p className="text-xs font-mono font-bold text-slate-900 dark:text-white">{manifest.posicoes} pos - {manifest.posDims}</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="bg-white dark:bg-slate-900/40 p-2 rounded border border-slate-200 dark:border-white/5">
+                        <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">FWD ({manifest.fwdMax})</p>
+                        <p className="text-xs font-mono font-bold text-slate-900 dark:text-white">{manifest.posDims}</p>
+                      </div>
+                      <div className="bg-white dark:bg-slate-900/40 p-2 rounded border border-slate-200 dark:border-white/5">
+                        <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">AFT ({manifest.aftMax})</p>
+                        <p className="text-xs font-mono font-bold text-slate-900 dark:text-white">{manifest.posDims}</p>
+                      </div>
                     </div>
                     <div className="bg-white dark:bg-slate-900/40 p-2 rounded border border-slate-200 dark:border-white/5">
                       <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Bulk (Hold 5)</p>
