@@ -338,19 +338,36 @@ export function generateManifest(input: CargoInput): ManifestResult {
         }
       }
       
+      const isLoose = (p.type || input.cargoType) === 'LOOSE';
+      
       if (p.height > 114) {
-        warnings.push(`CRÍTICO (Prancha ${pranchaNum}): Altura máxima excedida (114cm).`);
-        status = 'REJEITADO';
+        if (isLoose) {
+          warnings.push(`INFO (Prancha ${pranchaNum}): Altura informada (${p.height}cm) excede o porão, mas por ser CARGA SOLTA, assume-se rearranjo para ocupação das posições.`);
+          if (status !== 'REJEITADO') status = 'ALERTA';
+        } else {
+          warnings.push(`CRÍTICO (Prancha ${pranchaNum}): Altura máxima excedida (114cm).`);
+          status = 'REJEITADO';
+        }
       }
       
       if (p.width > 145) {
-        warnings.push(`AVISO (Prancha ${pranchaNum}): Base Width > 145cm. Requer verificação de compatibilidade.`);
-        if (status !== 'REJEITADO') status = 'ALERTA';
+        if (isLoose) {
+          warnings.push(`INFO (Prancha ${pranchaNum}): Largura (${p.width}cm) excede o padrão, mas por ser CARGA SOLTA, assume-se rearranjo.`);
+          if (status !== 'REJEITADO') status = 'ALERTA';
+        } else {
+          warnings.push(`AVISO (Prancha ${pranchaNum}): Base Width > 145cm. Requer verificação de compatibilidade.`);
+          if (status !== 'REJEITADO') status = 'ALERTA';
+        }
       }
       
       if (p.length > 220) {
-        warnings.push(`AVISO (Prancha ${pranchaNum}): Comprimento > 220cm. Requer amarração especial.`);
-        if (status !== 'REJEITADO') status = 'ALERTA';
+        if (isLoose) {
+          warnings.push(`INFO (Prancha ${pranchaNum}): Comprimento (${p.length}cm) excede o padrão, mas por ser CARGA SOLTA, assume-se rearranjo.`);
+          if (status !== 'REJEITADO') status = 'ALERTA';
+        } else {
+          warnings.push(`AVISO (Prancha ${pranchaNum}): Comprimento > 220cm. Requer amarração especial.`);
+          if (status !== 'REJEITADO') status = 'ALERTA';
+        }
       }
 
       // Door Dimension Check (Tipping Check)
@@ -363,16 +380,18 @@ export function generateManifest(input: CargoInput): ManifestResult {
       door_checks.push({
         pranchaId: p.id,
         pranchaIndex: pranchaNum,
-        passed: fitsDoor,
+        passed: isLoose ? true : fitsDoor, // Loose cargo can be broken down
         pieceDims: [p.length, p.width, p.height],
         sortedDims: [minDim, midDim, dims[2]],
         doorDims: config.doorDims,
-        message: fitsDoor ? 'OK' : `Dimensões excedem a porta (${config.doorDims.w}x${config.doorDims.h}cm)`
+        message: isLoose ? 'OK (Carga Solta)' : (fitsDoor ? 'OK' : `Dimensões excedem a porta (${config.doorDims.w}x${config.doorDims.h}cm)`)
       });
 
-      if (!fitsDoor && input.aircraft !== 'OTHER') {
+      if (!fitsDoor && input.aircraft !== 'OTHER' && !isLoose) {
          warnings.push(`CRÍTICO (Prancha ${pranchaNum}): Dimensões excedem a porta de carga (${config.doorDims.w}x${config.doorDims.h}cm). Risco de não embarque.`);
          status = 'REJEITADO';
+      } else if (!fitsDoor && isLoose) {
+         warnings.push(`INFO (Prancha ${pranchaNum}): Dimensões do pallet excedem a porta, mas por ser CARGA SOLTA, assume-se que os volumes individuais passarão.`);
       }
       
       const areaM2 = (p.length / 100) * (p.width / 100);
